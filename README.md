@@ -45,11 +45,18 @@ draws it.
 | --- | --- | --- | --- |
 | `CLD`, `CLD2`… | Claude Code | `~/.claude` and any `~/.claude-<name>` (the ones you use with `CLAUDE_CONFIG_DIR`) | Limits from Anthropic's usage endpoint with your existing login; tokens and cost from local transcripts. |
 | `OAI` | Codex / ChatGPT | `~/.codex/auth.json` | Limits only. |
-| `AG` | Antigravity | The language server Antigravity itself runs on `127.0.0.1` | Works while Antigravity is open; otherwise shows the last known value. |
+| `AG` | Antigravity | The language server Antigravity itself runs on `127.0.0.1` | Works while the Antigravity IDE is open; otherwise shows the last known value. |
 | `GH` | GitHub Copilot | The official `gh` CLI (`gh api`) | Monthly quotas. Needs `gh auth login`. |
 
-An account only appears if its folder exists on your machine, and each one can
-be switched off in the settings.
+**None of these tools is required.** TokenBar shows whichever ones you have:
+an account only appears if its folder exists on your machine, and each one can
+be switched off in the settings. You can use it with Claude Code alone, for
+example, and you do not need Antigravity installed.
+
+Claude Code, Codex and Copilot are read the same way whether you use them in a
+terminal, in VS Code or in any other editor. Antigravity is the only one that
+depends on its own app: its card needs the Antigravity IDE running (the `agy`
+terminal CLI on its own is not detected).
 
 ## Requirements
 
@@ -136,7 +143,8 @@ split.
 
 ## Limitations
 
-- **Antigravity needs to be open.** Its quota API only accepts tokens issued
+- **The Antigravity card needs the Antigravity IDE open.** The rest of
+  TokenBar does not. Its quota API only accepts tokens issued
   to Antigravity itself, so TokenBar asks the local language server instead of
   logging in on its own.
 - **No Claude reset credits.** Anthropic only returns them to Claude Code
