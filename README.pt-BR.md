@@ -156,7 +156,7 @@ shell aninhado numa janela.
 
 ```sh
 npm test                    # 54 testes de unidade/integração, só Node
-scripts/ui-test.sh          # 40 verificações num GNOME Shell headless de verdade
+scripts/ui-test.sh          # 43 verificações num GNOME Shell headless de verdade
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração
 ```
 

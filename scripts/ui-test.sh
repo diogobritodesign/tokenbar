@@ -5,6 +5,7 @@
 #
 #   scripts/ui-test.sh             roda as verificações
 #   scripts/ui-test.sh --shots DIR também salva capturas de tela em DIR
+#   TOKENBAR_TEST_WALLPAPER=/caminho/imagem.png  usa esse papel de parede (confere desfoque e sombra)
 set -uo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,6 +38,10 @@ FAILS=0
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.shell enabled-extensions "['$UUID']"
 gsettings set org.gnome.shell welcome-dialog-last-shown-version '99'
+if [[ -n "${TOKENBAR_TEST_WALLPAPER:-}" ]]; then
+  gsettings set org.gnome.desktop.background picture-uri "file://$TOKENBAR_TEST_WALLPAPER"
+  gsettings set org.gnome.desktop.background picture-uri-dark "file://$TOKENBAR_TEST_WALLPAPER"
+fi
 # As verificações usam os textos em português; o inglês é conferido no fim.
 $GS set $SCHEMA language pt
 gnome-shell --headless --unsafe-mode --wayland-display tokenbar-test --virtual-monitor 1280x1080 > "$WORK/shell.log" 2>&1 &
@@ -84,6 +89,11 @@ $GS set $SCHEMA bar-hidden-providers "[]"
 echo "Painel"
 ev "$I.menu.open(); 1" >/dev/null; sleep 1.5
 check "abre" "$(ev "$I.menu.isOpen")" "true"
+check "camada de desfoque do tamanho exato do painel" "$(ev "(() => { const b = $I._blurLayer, s = $I._surface; return [s.width - b.width, s.height - b.height, b.width > 300, b.get_effects().length].join(' '); })()")" "\"2 2 true 1\""
+$GS set $SCHEMA background-blur false; sleep 0.5
+check "desligar o desfoque desativa o efeito e deixa o fundo sólido" "$(ev "(() => { const e = $I._blurLayer.get_effects()[0]; return [e.enabled, $I._surface.has_style_class_name('tokenbar-surface-solid')].join(' '); })()")" "\"false true\""
+$GS set $SCHEMA background-blur true; sleep 0.5
+check "religar restaura" "$(ev "(() => { const e = $I._blurLayer.get_effects()[0]; return [e.enabled, $I._surface.has_style_class_name('tokenbar-surface-solid')].join(' '); })()")" "\"true false\""
 check "mostra o custo do dia em reais" "$(has_text 'R\$ ')" "true"
 check "cartão principal começa aberto" "$(has_text 'tokens hoje')" "true"
 shot panel.png

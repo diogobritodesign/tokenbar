@@ -57,15 +57,29 @@
 .tokenbar-dot.tokenbar-off { background-color: #6b6b70; }
 
 /* ---------- Painel ---------- */
+/* A caixa do menu do shell fica só como contêiner; o painel é .tokenbar-surface. */
 .popup-menu-content.tokenbar-menu {
-  padding: 12px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.tokenbar-surface {
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background-color: rgba(15, 15, 16, 0.7);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
+.tokenbar-surface.tokenbar-surface-solid {
+  background-color: rgba(15, 15, 16, 0.95);
+}
+
 .tokenbar-popup {
+  padding: 12px;
   spacing: 12px;
   font-family: Geist Mono, SF Mono, Adwaita Mono, monospace;
   font-size: 12px;

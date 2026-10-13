@@ -173,7 +173,7 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 
 ```sh
 npm test                    # 54 unit/integration tests, Node only
-scripts/ui-test.sh          # 40 checks against a real headless GNOME Shell
+scripts/ui-test.sh          # 43 checks against a real headless GNOME Shell
 scripts/preview.sh --demo   # nested shell with demo data
 ```
 

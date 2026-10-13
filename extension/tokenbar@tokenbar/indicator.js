@@ -83,7 +83,10 @@ class TokenBarIndicator extends PanelMenu.Button {
 
         this._buildPopup();
 
-        this._settings.connectObject('changed', () => this._render(), this);
+        this._settings.connectObject(
+            'changed', () => this._render(),
+            'changed::background-blur', () => this._applyBlurSetting(),
+            this);
         this.menu.connectObject('open-state-changed', (_menu, open) => this._onMenuToggled(open), this);
 
         // O coletor troca o arquivo com rename, então observa-se o diretório.
@@ -105,18 +108,37 @@ class TokenBarIndicator extends PanelMenu.Button {
     }
 
     _buildPopup() {
+        // A caixa do menu fica invisível; quem desenha fundo, borda e sombra é
+        // `surface`. O desfoque vai numa camada própria, do tamanho exato do
+        // painel: aplicado num ator com sombra ele cobre também a área da
+        // sombra e aparece como um retângulo em volta. O desfoque do shell é
+        // retangular, então nos quatro cantos arredondados podem sobrar
+        // alguns pixels desfocados por fora da curva.
         this.menu.box.add_style_class_name('tokenbar-menu');
-        this.menu.box.add_effect_with_name('tokenbar-blur', new Shell.BlurEffect({
+        const surface = new St.Widget({
+            style_class: 'tokenbar-surface',
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this.menu.box.add_child(surface);
+        this._surface = surface;
+
+        const blurLayer = new St.Widget({x_expand: true, y_expand: true});
+        blurLayer.add_effect(new Shell.BlurEffect({
             radius: BLUR_RADIUS,
             brightness: 1.0,
             mode: Shell.BlurMode.BACKGROUND,
         }));
+        surface.add_child(blurLayer);
+        this._blurLayer = blurLayer;
+        this._applyBlurSetting();
 
         this._popup = new St.BoxLayout({
             style_class: 'tokenbar-popup',
             orientation: Clutter.Orientation.VERTICAL,
+            x_expand: true,
+            y_expand: true,
         });
-        this.menu.box.add_child(this._popup);
+        surface.add_child(this._popup);
 
         const header = new St.BoxLayout({style_class: 'tokenbar-header'});
         header.add_child(new St.Label({
@@ -188,6 +210,16 @@ class TokenBarIndicator extends PanelMenu.Button {
             this._setView(this._view === 'settings' ? 'main' : 'settings');
         });
         footer.add_child(this._viewButton);
+    }
+
+    // Sem desfoque, o painel fica com fundo quase opaco para continuar legível.
+    _applyBlurSetting() {
+        const enabled = this._settings.get_boolean('background-blur');
+        this._blurLayer.get_effects().forEach(effect => effect.set_enabled(enabled));
+        if (enabled)
+            this._surface.remove_style_class_name('tokenbar-surface-solid');
+        else
+            this._surface.add_style_class_name('tokenbar-surface-solid');
     }
 
     // Pede uma coleta imediata (ex.: depois de trocar o idioma).
@@ -280,6 +312,9 @@ class TokenBarIndicator extends PanelMenu.Button {
         display.add_child(labeled(t('set.percentages'), makeChoice(localized(DISPLAY_MODES),
             settings.get_boolean('show-remaining') ? 'remaining' : 'used',
             value => settings.set_boolean('show-remaining', value === 'remaining'))));
+        display.add_child(settingRow(t('set.blur'),
+            makeSwitch(settings.get_boolean('background-blur'),
+                active => settings.set_boolean('background-blur', active))));
         display.add_child(labeled(t('set.currency'), makeChoice(localized(CURRENCIES), settings.get_string('currency'),
             value => settings.set_string('currency', value))));
 

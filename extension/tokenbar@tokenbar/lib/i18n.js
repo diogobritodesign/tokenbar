@@ -53,6 +53,7 @@ export const STRINGS = {
     'lang.auto': ['Sistema', 'System'],
     'lang.pt': ['Português', 'Português'],
     'lang.en': ['English', 'English'],
+    'set.blur': ['Desfoque do fundo', 'Background blur'],
     'set.percentages': ['Percentuais', 'Percentages'],
     'display.remaining': ['Restante', 'Left'],
     'display.used': ['Usado', 'Used'],
