@@ -1,0 +1,16 @@
+{
+  "name": "tokenbar-collector",
+  "version": "0.1.0",
+  "description": "Coleta consumo e limites de contas de IA e grava ~/.cache/tokenbar/state.json",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tokenbar-collector": "bin/tokenbar-collector.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "once": "node bin/tokenbar-collector.js --once"
+  }
+}

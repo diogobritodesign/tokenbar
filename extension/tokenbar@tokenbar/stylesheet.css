@@ -1,0 +1,371 @@
+/*
+ * Visual "fintech escuro": cartões quase pretos bem arredondados, fonte
+ * monoespaçada com números grandes e leves, chips em pílula e medidores em blocos.
+ *
+ * Cores
+ *   fundo    #0f0f10    cartão  #222225    relevo  #2a2a2d
+ *   texto    #ffffff    apagado #8e8e93
+ *   verde    #7bea83    amarelo #ece38f    vermelho #ff7b72    lilás #a97cf8
+ *
+ * Espaçamento em múltiplos de 4px: 4 (dentro de um controle), 8 (entre itens
+ * irmãos), 12 (entre blocos de um cartão), 16 (respiro lateral do cartão).
+ * Texto: 15 título, 13 nomes, 12 corpo, 11 apoio.
+ */
+
+/* ---------- Barra superior ---------- */
+.tokenbar-panel {
+  spacing: 14px;
+  font-family: Geist Mono, SF Mono, Adwaita Mono, monospace;
+  font-feature-settings: "tnum";
+}
+
+.tokenbar-panel-item {
+  spacing: 6px;
+}
+
+.tokenbar-panel-name {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.tokenbar-panel-value {
+  font-weight: 600;
+}
+
+.tokenbar-ring {
+  width: 15px;
+  height: 15px;
+  color: #6b6b70;
+}
+
+.tokenbar-ring.tokenbar-ok { color: #7bea83; }
+.tokenbar-ring.tokenbar-warn { color: #ece38f; }
+.tokenbar-ring.tokenbar-crit { color: #ff7b72; }
+.tokenbar-ring.tokenbar-off { color: #6b6b70; }
+
+.tokenbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #6b6b70;
+}
+
+.tokenbar-dot.tokenbar-ok { background-color: #7bea83; }
+.tokenbar-dot.tokenbar-warn { background-color: #ece38f; }
+.tokenbar-dot.tokenbar-crit { background-color: #ff7b72; }
+.tokenbar-dot.tokenbar-off { background-color: #6b6b70; }
+
+/* ---------- Painel ---------- */
+.popup-menu-content.tokenbar-menu {
+  padding: 12px;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background-color: rgba(15, 15, 16, 0.7);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tokenbar-popup {
+  spacing: 12px;
+  font-family: Geist Mono, SF Mono, Adwaita Mono, monospace;
+  font-size: 12px;
+  font-feature-settings: "tnum";
+  color: #ffffff;
+}
+
+.tokenbar-header {
+  padding: 6px 4px 0 8px;
+}
+
+.tokenbar-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tokenbar-pill {
+  spacing: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+}
+
+.tokenbar-muted { color: #8e8e93; }
+.tokenbar-small { font-size: 11px; }
+.tokenbar-tiny { font-size: 11px; }
+.tokenbar-medium { font-size: 14px; }
+
+.tokenbar-value.tokenbar-ok { color: #7bea83; }
+.tokenbar-value.tokenbar-warn { color: #ece38f; }
+.tokenbar-value.tokenbar-crit { color: #ff7b72; }
+.tokenbar-value.tokenbar-off { color: #8e8e93; }
+
+.tokenbar-scroll {
+  -st-vfade-offset: 28px;
+}
+
+.tokenbar-sections {
+  spacing: 8px;
+}
+
+/* ---------- Cartões ---------- */
+.tokenbar-card {
+  spacing: 12px;
+  padding: 12px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: rgba(34, 34, 37, 0.72);
+}
+
+.tokenbar-card-head {
+  spacing: 8px;
+}
+
+.tokenbar-card-toggle {
+  border-radius: 10px;
+}
+
+.tokenbar-chevron {
+  icon-size: 14px;
+  color: #6b6b70;
+}
+
+.tokenbar-card-toggle:hover .tokenbar-chevron,
+.tokenbar-card-toggle:focus .tokenbar-chevron {
+  color: #ffffff;
+}
+
+.tokenbar-card-toggle:hover .tokenbar-name,
+.tokenbar-card-toggle:focus .tokenbar-name {
+  color: #d9c8fd;
+}
+
+.tokenbar-tag {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #0f0f10;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tokenbar-name {
+  font-size: 13px;
+}
+
+.tokenbar-hero {
+  spacing: 8px;
+}
+
+.tokenbar-big {
+  font-size: 34px;
+  font-weight: 300;
+}
+
+.tokenbar-big-caption {
+  padding-bottom: 7px;
+}
+
+.tokenbar-group-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: #a97cf8;
+}
+
+.tokenbar-window {
+  spacing: 6px;
+}
+
+.tokenbar-window-text {
+  spacing: 6px;
+  font-size: 11px;
+}
+
+.tokenbar-segment {
+  height: 12px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.tokenbar-segment.tokenbar-ok { background-color: #7bea83; }
+.tokenbar-segment.tokenbar-warn { background-color: #ece38f; }
+.tokenbar-segment.tokenbar-crit { background-color: #ff7b72; }
+.tokenbar-segment.tokenbar-off { background-color: #6b6b70; }
+
+.tokenbar-pace { color: #ece38f; }
+.tokenbar-pace-crit { color: #ff7b72; }
+
+.tokenbar-error {
+  font-size: 11px;
+  color: #ff7b72;
+}
+
+.tokenbar-warning {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background-color: rgba(236, 227, 143, 0.12);
+  font-size: 11px;
+  color: #ece38f;
+}
+
+/* ---------- Resumo, gráfico e detalhes ---------- */
+.tokenbar-summary {
+  spacing: 10px;
+}
+
+.tokenbar-chart {
+  height: 40px;
+}
+
+.tokenbar-details {
+  spacing: 4px;
+}
+
+.tokenbar-details .tokenbar-group-title {
+  padding-top: 4px;
+}
+
+.tokenbar-detail-row {
+  spacing: 8px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.tokenbar-row-button {
+  border-radius: 8px;
+}
+
+.tokenbar-row-button:hover,
+.tokenbar-row-button:focus {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Botão discreto de largura total (abrir/ocultar detalhes). */
+.tokenbar-ghost {
+  padding: 7px 12px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.04);
+  color: #8e8e93;
+  font-size: 11px;
+}
+
+.tokenbar-ghost:hover,
+.tokenbar-ghost:focus {
+  background-color: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+}
+
+/* ---------- Botões e controle segmentado ---------- */
+.tokenbar-segmented {
+  spacing: 4px;
+  padding: 4px;
+  border-radius: 18px;
+  background-color: rgba(34, 34, 37, 0.72);
+}
+
+.tokenbar-button {
+  padding: 9px 12px;
+  border-radius: 14px;
+  color: #c7c7cc;
+  font-size: 12px;
+}
+
+.tokenbar-button-primary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.tokenbar-button:hover,
+.tokenbar-button:focus {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.tokenbar-button:active {
+  background-color: #a97cf8;
+  color: #0f0f10;
+}
+
+.tokenbar-choice {
+  padding: 3px;
+  border-radius: 13px;
+  background-color: rgba(15, 15, 16, 0.55);
+}
+
+.tokenbar-button-small {
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+/* ---------- Configurações dentro do painel ---------- */
+.tokenbar-set-card {
+  spacing: 12px;
+}
+
+.tokenbar-set-row {
+  spacing: 8px;
+}
+
+.tokenbar-labeled {
+  spacing: 6px;
+}
+
+.tokenbar-set-column {
+  width: 58px;
+  text-align: center;
+}
+
+.tokenbar-switch {
+  padding: 3px;
+  border-radius: 13px;
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.tokenbar-switch:checked {
+  background-color: #a97cf8;
+}
+
+.tokenbar-switch-track {
+  width: 28px;
+  height: 14px;
+}
+
+.tokenbar-switch-knob {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background-color: #8e8e93;
+}
+
+.tokenbar-switch:checked .tokenbar-switch-knob {
+  background-color: #ffffff;
+}
+
+.tokenbar-stepper {
+  spacing: 4px;
+}
+
+.tokenbar-stepper-value {
+  width: 52px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.tokenbar-step {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.tokenbar-step:hover,
+.tokenbar-step:focus {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.tokenbar-step:active {
+  background-color: #a97cf8;
+  color: #0f0f10;
+}

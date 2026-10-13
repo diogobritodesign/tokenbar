@@ -1,0 +1,13 @@
+{
+  "uuid": "tokenbar@tokenbar",
+  "name": "TokenBar",
+  "description": "AI usage limits in the top bar: Claude Code, Codex, Antigravity and GitHub Copilot. Interface in English and Portuguese.",
+  "shell-version": [
+    "48",
+    "49",
+    "50"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.tokenbar",
+  "version": 1,
+  "url": "https://github.com/diogobritodesign/tokenbar"
+}

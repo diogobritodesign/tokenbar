@@ -1,0 +1,15 @@
+[Unit]
+Description=TokenBar — coletor de consumo das contas de IA
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/tokenbar-collector
+Restart=on-failure
+RestartSec=30
+Nice=10
+MemoryMax=512M
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

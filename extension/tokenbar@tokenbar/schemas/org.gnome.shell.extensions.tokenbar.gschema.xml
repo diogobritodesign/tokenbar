@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.tokenbar" path="/org/gnome/shell/extensions/tokenbar/">
+    <key name="disabled-providers" type="as">
+      <default>[]</default>
+      <summary>Provedores que o coletor não deve consultar</summary>
+    </key>
+    <key name="bar-hidden-providers" type="as">
+      <default>[]</default>
+      <summary>Contas que não aparecem na barra superior</summary>
+    </key>
+    <key name="bar-mode" type="s">
+      <choices>
+        <choice value="full"/>
+        <choice value="dots"/>
+        <choice value="critical"/>
+      </choices>
+      <default>'full'</default>
+      <summary>O que aparece na barra: tudo, só as bolinhas ou só a conta mais crítica</summary>
+    </key>
+    <key name="warn-threshold" type="i">
+      <range min="1" max="99"/>
+      <default>60</default>
+      <summary>Percentual a partir do qual a cor fica laranja</summary>
+    </key>
+    <key name="crit-threshold" type="i">
+      <range min="2" max="100"/>
+      <default>85</default>
+      <summary>Percentual acima do qual a cor fica vermelha</summary>
+    </key>
+    <key name="expanded-providers" type="as">
+      <default>['claude-main']</default>
+      <summary>Contas cujo cartão fica aberto no painel</summary>
+    </key>
+    <key name="budget-daily" type="i">
+      <range min="0" max="100000"/>
+      <default>0</default>
+      <summary>Meta de gasto por dia, na moeda escolhida (0 desliga)</summary>
+    </key>
+    <key name="budget-monthly" type="i">
+      <range min="0" max="1000000"/>
+      <default>0</default>
+      <summary>Meta de gasto em 30 dias, na moeda escolhida (0 desliga)</summary>
+    </key>
+    <key name="toggle-panel" type="as">
+      <default><![CDATA[['<Super><Alt>t']]]></default>
+      <summary>Atalho de teclado que abre e fecha o painel</summary>
+    </key>
+    <key name="language" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="pt"/>
+        <choice value="en"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>Idioma da interface: auto segue o sistema (português ou inglês)</summary>
+    </key>
+    <key name="show-remaining" type="b">
+      <default>true</default>
+      <summary>Mostrar o percentual restante (medidores esvaziam) em vez do usado</summary>
+    </key>
+    <key name="currency" type="s">
+      <choices>
+        <choice value="brl"/>
+        <choice value="usd"/>
+      </choices>
+      <default>'brl'</default>
+      <summary>Moeda em que o custo estimado aparece</summary>
+    </key>
+    <key name="notifications" type="b">
+      <default>true</default>
+      <summary>Avisar quando uma janela passa do limite vermelho e quando ela libera</summary>
+    </key>
+    <key name="collector-interval" type="i">
+      <range min="60" max="3600"/>
+      <default>120</default>
+      <summary>Intervalo do coletor, em segundos</summary>
+    </key>
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="center"/>
+        <choice value="right"/>
+      </choices>
+      <default>'right'</default>
+      <summary>Lado da barra superior</summary>
+    </key>
+    <key name="panel-index" type="i">
+      <range min="0" max="20"/>
+      <default>0</default>
+      <summary>Índice dentro do lado escolhido</summary>
+    </key>
+  </schema>
+</schemalist>
