@@ -227,9 +227,12 @@ divisão.
 - A projeção "esgota em" não é calculada para cotas mensais.
 - Idiomas da interface: só português e inglês.
 - **Ícone de bandeja**: o menu do botão direito é desenhado por cada desktop; o
-  painel do clique esquerdo é igual em todos. No X11 e em Wayland sem
-  layer-shell ele abre como janela comum sem borda, posicionada pelo desktop.
-  Testado no KDE Plasma 6 (num contêiner, onde o painel abre no canto superior direito com o gtk4-layer-shell) e no host de bandeja do GNOME; ainda não no Xfce nem no Cinnamon.
+  painel do clique esquerdo é igual em todos e abre junto do ícone (no
+  Wayland isso precisa do gtk4-layer-shell; sem ele, o desktop posiciona a
+  janela). Testado com cliques reais no KDE Plasma 6 (Wayland e X11), Xfce e
+  Cinnamon, e no host de bandeja do GNOME. O percentual em texto ao lado do
+  ícone só aparece nos desktops que suportam isso; Plasma, Xfce e Cinnamon
+  mostram só o anel.
 
 ## Resolução de problemas
 

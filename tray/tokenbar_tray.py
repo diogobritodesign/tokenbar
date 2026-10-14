@@ -533,10 +533,11 @@ class Tray:
             return GLib.Variant('s', self.label_guide())
         return None
 
-    def item_method(self, _conn, _sender, _path, _iface, method, _params, invocation):
+    def item_method(self, _conn, _sender, _path, _iface, method, params, invocation):
         # Clique: abre o mesmo painel do GNOME; sem GTK 4 o host mostra o menu.
         if method == 'Activate' and self.panel_window() is not None:
-            GLib.idle_add(lambda: (self.panel.toggle(), False)[1])
+            x, y = params.unpack()
+            GLib.idle_add(lambda: (self.panel.toggle(x, y), False)[1])
         invocation.return_value(None)
 
     def panel_window(self):

@@ -245,9 +245,12 @@ split.
 - The "runs out in" projection for monthly quotas is not computed.
 - Interface languages: English and Portuguese only.
 - **Tray icon**: the right-click menu is drawn by each desktop; the panel opened
-  by a left click looks the same everywhere. On X11 and on Wayland desktops
-  without layer-shell it opens as a normal borderless window, placed by the
-  desktop. Tested on KDE Plasma 6 (in a container, where the panel opens in the top-right corner with gtk4-layer-shell) and against GNOME's tray host; not yet on Xfce or Cinnamon.
+  by a left click looks the same everywhere and opens next to the icon (on
+  Wayland this needs gtk4-layer-shell; without it the desktop places the
+  window). Tested with real clicks on KDE Plasma 6 (Wayland and X11), Xfce and
+  Cinnamon, and on GNOME's tray host. The percentage text next to the icon is
+  only shown by desktops that support it; Plasma, Xfce and Cinnamon show just
+  the ring.
 
 ## Troubleshooting
 

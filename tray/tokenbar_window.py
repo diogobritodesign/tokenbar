@@ -360,6 +360,104 @@ def stepper(read, write, fmt):
     return widget
 
 
+def is_wayland():
+    display = Gdk.Display.get_default()
+    return display is not None and 'Wayland' in type(display).__name__
+
+
+class X11Placer:
+    """No X11 (Xfce, Cinnamon, MATE...) o GTK 4 não posiciona janelas: falamos
+    direto com a Xlib para abrir o painel junto do ícone, dentro da área útil
+    da tela, e fora da barra de tarefas — como um menu."""
+
+    @classmethod
+    def create(cls):
+        display = Gdk.Display.get_default()
+        if display is None or 'X11' not in type(display).__name__:
+            return None
+        try:
+            gi.require_version('GdkX11', '4.0')
+            from gi.repository import GdkX11  # noqa: F401
+            lib = ctypes.CDLL('libX11.so.6')
+        except (OSError, ImportError, ValueError):
+            return None
+        return cls(lib)
+
+    def __init__(self, lib):
+        self.lib = lib
+        lib.XOpenDisplay.restype = ctypes.c_void_p
+        lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        lib.XDefaultRootWindow.restype = ctypes.c_ulong
+        lib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        lib.XInternAtom.restype = ctypes.c_ulong
+        lib.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+        lib.XChangeProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+        lib.XMoveWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_int]
+        lib.XFlush.argtypes = [ctypes.c_void_p]
+        lib.XQueryPointer.argtypes = [ctypes.c_void_p, ctypes.c_ulong] + [ctypes.c_void_p] * 7
+        lib.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                                           ctypes.c_int, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                                           ctypes.c_void_p, ctypes.c_void_p]
+        lib.XFree.argtypes = [ctypes.c_void_p]
+        self.dpy = lib.XOpenDisplay(None)
+        self.root = lib.XDefaultRootWindow(self.dpy)
+
+    def atom(self, name):
+        return self.lib.XInternAtom(self.dpy, name.encode(), 0)
+
+    def xid(self, window):
+        surface = window.get_surface()
+        return surface.get_xid() if surface is not None and hasattr(surface, 'get_xid') else None
+
+    def prepare(self, window):
+        xid = self.xid(window)
+        if not xid:
+            return
+        kind = (ctypes.c_ulong * 1)(self.atom('_NET_WM_WINDOW_TYPE_UTILITY'))
+        self.lib.XChangeProperty(self.dpy, xid, self.atom('_NET_WM_WINDOW_TYPE'), self.atom('ATOM'), 32, 0, kind, 1)
+        states = (ctypes.c_ulong * 3)(self.atom('_NET_WM_STATE_SKIP_TASKBAR'), self.atom('_NET_WM_STATE_SKIP_PAGER'),
+                                      self.atom('_NET_WM_STATE_ABOVE'))
+        self.lib.XChangeProperty(self.dpy, xid, self.atom('_NET_WM_STATE'), self.atom('ATOM'), 32, 0, states, 3)
+        self.lib.XFlush(self.dpy)
+
+    def pointer(self):
+        ints = [ctypes.c_int() for _ in range(4)]
+        child, root_win, mask = ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_uint()
+        self.lib.XQueryPointer(self.dpy, self.root, ctypes.byref(root_win), ctypes.byref(child), ctypes.byref(ints[0]),
+                               ctypes.byref(ints[1]), ctypes.byref(ints[2]), ctypes.byref(ints[3]), ctypes.byref(mask))
+        return ints[0].value, ints[1].value
+
+    def workarea(self, fallback):
+        kind, fmt, count, rest = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong()
+        data = ctypes.c_void_p()
+        ok = self.lib.XGetWindowProperty(self.dpy, self.root, self.atom('_NET_WORKAREA'), 0, 4, 0, 0, ctypes.byref(kind),
+                                         ctypes.byref(fmt), ctypes.byref(count), ctypes.byref(rest), ctypes.byref(data))
+        if ok != 0 or not data.value:
+            return fallback
+        try:
+            if count.value < 4:
+                return fallback
+            values = ctypes.cast(data, ctypes.POINTER(ctypes.c_long))
+            return tuple(values[i] for i in range(4))
+        finally:
+            self.lib.XFree(data)
+
+    def place(self, window, margin=8):
+        xid = self.xid(window)
+        if not xid:
+            return
+        width, height = window.get_width(), window.get_height()
+        monitor = Gdk.Display.get_default().get_monitors().get_item(0).get_geometry()
+        left, top, area_w, area_h = self.workarea((0, 0, monitor.width, monitor.height))
+        px, py = self.pointer()
+        x = min(max(left + margin, px - width // 2), left + area_w - width - margin)
+        # Barra em cima: o painel desce do topo; barra embaixo: sobe do rodapé.
+        y = top + margin if py < top + area_h / 2 else top + area_h - height - margin
+        self.lib.XMoveWindow(self.dpy, xid, x, y)
+        self.lib.XFlush(self.dpy)
+
+
 # ---------------------------------------------------------------- janela
 
 
@@ -386,13 +484,16 @@ class PanelWindow:
         self.window = Gtk.Window(title='TokenBar', decorated=False, resizable=False)
         self.window.add_css_class('tokenbar')
         self.window.set_default_size(CONTENT_WIDTH + 2 * 12 + 2, -1)
-        if LayerShell and LayerShell.is_supported():
+        self.x11 = X11Placer.create()
+        if self.x11:
+            self.window.connect('realize', lambda *_: self.x11.prepare(self.window))
+        self.layer = False
+        if not self.x11 and LayerShell and is_wayland() and LayerShell.is_supported():
+            self.layer = True
             LayerShell.init_for_window(self.window)
             LayerShell.set_layer(self.window, LayerShell.Layer.OVERLAY)
             LayerShell.set_keyboard_mode(self.window, LayerShell.KeyboardMode.ON_DEMAND)
-            for edge, margin in ((LayerShell.Edge.TOP, 8), (LayerShell.Edge.RIGHT, 8)):
-                LayerShell.set_anchor(self.window, edge, True)
-                LayerShell.set_margin(self.window, edge, margin)
+            self.anchor(None, None)
         keys = Gtk.EventControllerKey()
         keys.connect('key-pressed', lambda _c, key, *_: (self.hide(), True)[1] if key == Gdk.KEY_Escape else False)
         self.window.add_controller(keys)
@@ -833,10 +934,29 @@ class PanelWindow:
     def visible(self):
         return self.window.get_visible()
 
-    def show(self):
+    def anchor(self, x, y, margin=8):
+        """Wayland com layer-shell: prende o painel no canto mais perto do
+        ícone (barra embaixo, como no Plasma, abre embaixo)."""
+        geometry = None
+        monitors = Gdk.Display.get_default().get_monitors()
+        if monitors.get_n_items():
+            geometry = monitors.get_item(0).get_geometry()
+        bottom = geometry is not None and y is not None and y > geometry.height / 2
+        left = geometry is not None and x is not None and 0 < x < geometry.width / 3
+        Edge = LayerShell.Edge
+        for edge, on in ((Edge.TOP, not bottom), (Edge.BOTTOM, bottom), (Edge.LEFT, left), (Edge.RIGHT, not left)):
+            LayerShell.set_anchor(self.window, edge, on)
+            LayerShell.set_margin(self.window, edge, margin if on else 0)
+
+    def show(self, x=None, y=None):
         self.view = 'main'
         self.render()
+        if self.layer:
+            self.anchor(x, y)
         self.window.present()
+        if self.x11:
+            # O gerenciador de janelas só aceita a posição depois de mapear.
+            GLib.timeout_add(30, lambda: (self.x11.place(self.window), False)[1])
 
     def hide(self):
         if self.window.get_visible():
@@ -844,11 +964,11 @@ class PanelWindow:
             if self.on_hide:
                 self.on_hide()
 
-    def toggle(self):
+    def toggle(self, x=None, y=None):
         if self.visible:
             self.hide()
         else:
-            self.show()
+            self.show(x, y)
 
     def reload_if_visible(self):
         if self.visible and self.view == 'main' and not self.refreshing:
