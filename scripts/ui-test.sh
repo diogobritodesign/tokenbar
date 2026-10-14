@@ -28,6 +28,8 @@ cp -r "$SRC/extension/$UUID" "$WORK/data/gnome-shell/extensions/"
 glib-compile-schemas --strict "$WORK/data/gnome-shell/extensions/$UUID/schemas"
 cp "$SRC"/fonts/*.ttf "$WORK/data/fonts/"
 node "$SRC/scripts/demo-state.mjs" "$WORK/cache/tokenbar/state.json"
+mkdir -p "$WORK/data/applications"
+printf '[Desktop Entry]\nType=Application\nName=TokenBar\nExec=true\nIcon=tokenbar\n' > "$WORK/data/applications/io.github.diogobritodesign.TokenBar.desktop"
 
 cat > "$WORK/inner.sh" <<'INNER'
 UUID="tokenbar@tokenbar"
@@ -165,6 +167,17 @@ check "trocar o idioma pelo painel reabre as configurações traduzidas" "$(ev "
 click "Voltar" >/dev/null; sleep 0.5
 $GS set $SCHEMA expanded-providers "['claude-main']"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1
+
+echo "Ícone na dock"
+ev "$I.menu.close(); 1" >/dev/null; sleep 0.5
+$GS set $SCHEMA dock-icon true; sleep 1
+check "ligar fixa o TokenBar na dock" "$(gsettings get org.gnome.shell favorite-apps | grep -c io.github.diogobritodesign.TokenBar.desktop)" "1"
+$GS set $SCHEMA open-request 1; sleep 1
+check "clique no ícone da dock abre o painel de cima" "$(ev "$I.menu.isOpen")" "true"
+$GS set $SCHEMA open-request 2; sleep 1
+check "clique de novo fecha" "$(ev "$I.menu.isOpen")" "false"
+$GS set $SCHEMA dock-icon false; sleep 1
+check "desligar tira da dock" "$(gsettings get org.gnome.shell favorite-apps | grep -c io.github.diogobritodesign.TokenBar.desktop)" "0"
 
 echo "Atualizações e sobre"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5

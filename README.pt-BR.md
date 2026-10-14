@@ -52,6 +52,10 @@ Arch e openSUSE).
 - **Configurações dentro do painel**: contas, o que a barra mostra, limites de
   cor, metas, moeda, idioma, intervalo do coletor, posição.
 - Atalho de teclado (`Super`+`Alt`+`T`) e exportação do histórico em CSV.
+- **Ícone na dock** (opcional, em qualquer desktop): a logo do TokenBar na dock
+  ou na barra de tarefas. No GNOME, o clique abre o painel da barra de cima; nos
+  outros desktops, abre o mesmo painel, e um segundo clique minimiza de volta
+  para a barra. O ícone é só a logo, sem número.
 - **Aviso de atualização**: uma vez por dia confere no GitHub se há versão nova
   e mostra uma faixa no painel (dá para desligar), com um botão **Atualizar
   agora** que roda `git pull && ./install.sh` sozinho na pasta de onde você
@@ -152,13 +156,17 @@ Wayland, o `gtk4-layer-shell` faz o painel abrir no canto, junto do ícone.
 Testado com cliques reais do mouse no KDE Plasma 6 (Wayland e X11), Xfce e
 Cinnamon.
 
-As opções ficam no bloco `"bar"` do `~/.config/tokenbar/config.json`:
+Tudo isso dá para mudar nas configurações do painel; fica guardado em
+`~/.config/tokenbar/config.json`:
 
 ```json
-{ "language": "pt", "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "brl" } }
+{ "language": "pt", "dock": true, "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "brl" } }
 ```
 
 `label` pode ser `critical` (a conta mais crítica), `all` ou `none`.
+`"dock": true` deixa o TokenBar na barra de tarefas como um programa comum (só
+a logo): ele abre minimizado no login, um clique nele abre o painel e o
+seguinte minimiza de novo.
 
 ### Waybar e Polybar
 
@@ -277,8 +285,8 @@ painel sem sair, `scripts/preview.sh` abre um shell aninhado numa janela.
 
 ```sh
 npm test                    # 69 testes em Node + 11 em Python (bandeja)
-scripts/ui-test.sh          # 54 verificações num GNOME Shell headless de verdade
-scripts/tray-test.sh        # 18 verificações da bandeja e do painel pelo D-Bus, no mesmo esquema isolado
+scripts/ui-test.sh          # 58 verificações num GNOME Shell headless de verdade
+scripts/tray-test.sh        # 22 verificações da bandeja, do painel e do modo dock pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS
 scripts/embedded-test.sh    # extensão empacotada rodando o próprio coletor em GJS, sem Node
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração

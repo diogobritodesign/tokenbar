@@ -54,6 +54,7 @@ export const STRINGS = {
     'lang.pt': ['Português', 'Português'],
     'lang.en': ['English', 'English'],
     'set.blur': ['Desfoque do fundo', 'Background blur'],
+    'set.dock': ['Ícone na dock', 'Dock icon'],
     'set.percentages': ['Percentuais', 'Percentages'],
     'display.remaining': ['Restante', 'Left'],
     'display.used': ['Usado', 'Used'],

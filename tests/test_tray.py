@@ -169,7 +169,7 @@ class OptionsTests(unittest.TestCase):
                 json.dump({'language': 'en', 'bar': {'showRemaining': False, 'warn': 50, 'crit': 70, 'label': 'all'}}, file)
             options = tray.load_options(path)
             self.assertEqual(options, {'language': 'en', 'show_remaining': False, 'warn': 50, 'crit': 70,
-                                       'currency': 'usd', 'label': 'all'})
+                                       'currency': 'usd', 'label': 'all', 'dock': False})
             with open(path, 'w', encoding='utf-8') as file:
                 file.write('{ quebrado')
             self.assertEqual(tray.load_options(path)['warn'], 60)

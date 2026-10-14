@@ -109,13 +109,49 @@ if [[ $WANT_EXTENSION == 1 ]]; then
   fi
 fi
 
+echo "==> App icon and dock shortcut"
+# Em qualquer desktop: logo nos ícones do sistema e um atalho "TokenBar" no
+# menu de aplicativos, que a opção "Ícone na dock" fixa na dock. No GNOME com a
+# extensão, o clique abre o painel da barra de cima; nos outros, a janela do painel.
+rm -rf "$APP_DIR/tray"
+cp -r "$SRC/tray" "$APP_DIR/tray"
+ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$ICON_DIR" "$HOME/.local/share/applications"
+install -m 644 "$SRC/assets/tokenbar-app-icon.svg" "$ICON_DIR/tokenbar.svg"
+gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+cat > "$HOME/.local/bin/tokenbar-open" <<OPEN
+#!/bin/sh
+# Clique no ícone da dock: abre/fecha o painel.
+EXT="$EXT_DIR"
+if [ -d "\$EXT" ] && gsettings --schemadir "\$EXT/schemas" get org.gnome.shell.extensions.tokenbar open-request >/dev/null 2>&1 \\
+   && case "\${XDG_CURRENT_DESKTOP:-}" in *GNOME*) true ;; *) false ;; esac \\
+   && gsettings get org.gnome.shell enabled-extensions | grep -q "'$UUID'"; then
+  exec gsettings --schemadir "\$EXT/schemas" set org.gnome.shell.extensions.tokenbar open-request "\$(date +%s%N)"
+fi
+# Bandeja rodando (KDE, Xfce, Cinnamon...): ela abre/minimiza o painel.
+TRAY="--session --dest io.github.diogobritodesign.TokenBar.Tray --object-path /StatusNotifierItem"
+if [ -n "\${XDG_ACTIVATION_TOKEN:-}" ]; then
+  gdbus call \$TRAY --method org.kde.StatusNotifierItem.ProvideXdgActivationToken "\$XDG_ACTIVATION_TOKEN" >/dev/null 2>&1
+fi
+gdbus call \$TRAY --method org.kde.StatusNotifierItem.Activate 0 0 >/dev/null 2>&1 && exit 0
+exec python3 -I "$APP_DIR/tray/tokenbar_window.py"
+OPEN
+chmod +x "$HOME/.local/bin/tokenbar-open"
+cat > "$HOME/.local/share/applications/io.github.diogobritodesign.TokenBar.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=TokenBar
+Comment=AI usage limits
+Exec=$HOME/.local/bin/tokenbar-open
+Icon=tokenbar
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+DESKTOP
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
 if [[ $WANT_TRAY == 1 ]]; then
   echo "==> Tray icon"
-  rm -rf "$APP_DIR/tray"
-  cp -r "$SRC/tray" "$APP_DIR/tray"
-  ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
-  mkdir -p "$ICON_DIR"
-  install -m 644 "$SRC/assets/tokenbar-app-icon.svg" "$ICON_DIR/tokenbar.svg"
   AUTOSTART="$HOME/.config/autostart"
   mkdir -p "$AUTOSTART"
   cat > "$AUTOSTART/tokenbar-tray.desktop" <<DESKTOP

@@ -366,6 +366,9 @@ class TokenBarIndicator extends PanelMenu.Button {
         display.add_child(settingRow(t('set.blur'),
             makeSwitch(settings.get_boolean('background-blur'),
                 active => settings.set_boolean('background-blur', active))));
+        display.add_child(settingRow(t('set.dock'),
+            makeSwitch(settings.get_boolean('dock-icon'),
+                active => settings.set_boolean('dock-icon', active))));
         display.add_child(labeled(t('set.currency'), makeChoice(localized(CURRENCIES), settings.get_string('currency'),
             value => settings.set_string('currency', value))));
 

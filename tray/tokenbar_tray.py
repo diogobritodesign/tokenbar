@@ -159,6 +159,7 @@ def load_options(config_path):
         'crit': int(bar.get('crit', 85)) if isinstance(bar.get('crit', 85), (int, float)) else 85,
         'currency': bar.get('currency') if bar.get('currency') in ('brl', 'usd') else ('brl' if language == 'pt' else 'usd'),
         'label': bar.get('label') if bar.get('label') in ('critical', 'all', 'none') else 'critical',
+        'dock': raw.get('dock') is True,
     }
 
 
@@ -384,6 +385,7 @@ ITEM_XML = """
     <method name="ContextMenu"><arg name="x" type="i" direction="in"/><arg name="y" type="i" direction="in"/></method>
     <method name="Activate"><arg name="x" type="i" direction="in"/><arg name="y" type="i" direction="in"/></method>
     <method name="SecondaryActivate"><arg name="x" type="i" direction="in"/><arg name="y" type="i" direction="in"/></method>
+    <method name="ProvideXdgActivationToken"><arg name="token" type="s" direction="in"/></method>
     <method name="Scroll"><arg name="delta" type="i" direction="in"/><arg name="orientation" type="s" direction="in"/></method>
     <signal name="NewTitle"/>
     <signal name="NewIcon"/>
@@ -513,6 +515,7 @@ class Tray:
         self.menu_root, self.menu_items = None, {}
         self.menu_ids = MenuIds()
         self.number_in_icon = 'GNOME' not in os.environ.get('XDG_CURRENT_DESKTOP', '').upper()
+        self.dock_panel = None  # janela do modo "ícone na dock"
         self.panel = None  # janela GTK 4, criada no primeiro clique; False = indisponível
         self.item_info = Gio.DBusNodeInfo.new_for_xml(ITEM_XML).interfaces[0]
         self.menu_info = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
@@ -543,6 +546,7 @@ class Tray:
                                         GLib.Variant('(ui)', (self.revision, 0)))
         if self.panel:
             self.panel.reload_if_visible()
+        self.apply_dock()
         return True
 
     def label_guide(self):
@@ -601,11 +605,42 @@ class Tray:
         return None
 
     def item_method(self, _conn, _sender, _path, _iface, method, params, invocation):
+        # Wayland: quem clicou (a barra do KDE, o atalho do menu) passa um
+        # "token" que permite ao painel vir para a frente com foco.
+        if method == 'ProvideXdgActivationToken':
+            self.activation_token = params.unpack()[0]
+            invocation.return_value(None)
+            return
+        token, self.activation_token = getattr(self, 'activation_token', None), None
+        for panel in (self.dock_panel, self.panel):
+            if token and panel:
+                panel.window.set_startup_id(token)
         # Clique: abre o mesmo painel do GNOME; sem GTK 4 o host mostra o menu.
-        if method == 'Activate' and self.panel_window() is not None:
+        if method == 'Activate' and self.dock_panel:
+            GLib.idle_add(lambda: (self.dock_panel.toggle(), False)[1])
+        elif method == 'Activate' and self.panel_window() is not None:
             x, y = params.unpack()
             GLib.idle_add(lambda: (self.panel.toggle(x, y), False)[1])
         invocation.return_value(None)
+
+    def apply_dock(self):
+        """Opção "Ícone na dock": um TokenBar comum na barra de baixo, só com a logo."""
+        wanted = self.view.options['dock']
+        if wanted and self.dock_panel is None and not getattr(self, 'dock_failed', False):
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import tokenbar_window
+                self.dock_panel = tokenbar_window.PanelWindow(self.state_path, self.config_path, self.collector, dock=True)
+                self.dock_panel.start_minimized()
+            except Exception as error:  # GTK 4 ausente ou sem tela
+                print(f'tokenbar: ícone na dock indisponível: {error}', file=sys.stderr)
+                self.dock_panel = None
+                self.dock_failed = True  # tenta uma vez só, sem encher o log
+        elif not wanted and self.dock_panel is not None:
+            self.dock_panel.window.destroy()
+            self.dock_panel = None
+        elif self.dock_panel:
+            self.dock_panel.reload_if_visible()
 
     def panel_window(self):
         if self.panel is False:
@@ -690,12 +725,19 @@ class Tray:
     def run(self):
         Gio.bus_own_name(Gio.BusType.SESSION, self.bus_name, Gio.BusNameOwnerFlags.NONE,
                          self.on_bus, self.on_name, lambda *_: self.loop.quit())
-        directory = Gio.File.new_for_path(os.path.dirname(self.state_path))
-        try:
-            self.monitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
-            self.monitor.connect('changed', lambda *_: self.reload())
-        except GLib.Error:
-            self.monitor = None
+        # Nome fixo: o atalho do menu/dock (tokenbar-open) chama o Activate daqui.
+        Gio.bus_own_name(Gio.BusType.SESSION, APP_ID + '.Tray', Gio.BusNameOwnerFlags.NONE, None, None, None)
+        GLib.idle_add(lambda: (self.apply_dock(), False)[1])
+        # Dados novos (state.json) e opções novas (config.json) valem na hora.
+        self.monitors = []
+        for path in (self.state_path, self.config_path):
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                monitor = Gio.File.new_for_path(os.path.dirname(path)).monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
+                monitor.connect('changed', lambda *_: self.reload())
+                self.monitors.append(monitor)
+            except (GLib.Error, OSError):
+                pass
         GLib.timeout_add_seconds(POLL_SECONDS, self.reload)
         self.loop.run()
 
@@ -709,7 +751,13 @@ def default_paths(env=os.environ):
             os.path.join(home, '.local', 'bin', 'tokenbar-collector'))
 
 
+APP_ID = 'io.github.diogobritodesign.TokenBar'
+
+
 def main():
+    # Mesmo id do atalho instalado: a barra de baixo mostra a logo do TokenBar.
+    GLib.set_prgname(APP_ID)
+    GLib.set_application_name('TokenBar')
     state_path, config_path, collector = default_paths()
     Tray(state_path, config_path, collector).run()
     return 0

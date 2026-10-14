@@ -41,7 +41,6 @@ SEGMENTS = 10
 SEGMENT_GAP = 3
 PACE_MIN_PCT = 5
 PACE_MIN_ELAPSED = 0.05
-LEVEL_RGB = {'ok': (0x7b, 0xea, 0x83), 'warn': (0xec, 0xe3, 0x8f), 'crit': (0xff, 0x7b, 0x72), 'off': (0x6b, 0x6b, 0x70)}
 
 # Os mesmos valores de extension/tokenbar@tokenbar/stylesheet.css.
 CSS = """
@@ -156,6 +155,7 @@ WINDOW_STRINGS = {
     'lang_auto': ('Sistema', 'System'), 'lang_pt': ('Português', 'Português'), 'lang_en': ('English', 'English'),
     's_percent': ('Percentuais', 'Percentages'), 'pct_left': ('Restante', 'Left'), 'pct_used': ('Usado', 'Used'),
     's_currency': ('Moeda do custo', 'Cost currency'), 'brl': ('Reais (R$)', 'Reais (R$)'), 'usd': ('Dólares (US$)', 'Dollars ($)'),
+    's_dock': ('Ícone na barra de baixo (só a logo)', 'Icon in the bottom bar (logo only)'),
     's_label': ('Texto ao lado do ícone', 'Text next to the icon'),
     'label_critical': ('Mais crítica', 'Most critical'), 'label_all': ('Todas', 'All'), 'label_none': ('Nenhum', 'None'),
     's_alerts': ('Cores', 'Colours'), 'warn_at': ('Amarelo com uso de', 'Yellow at usage of'),
@@ -387,7 +387,8 @@ class X11Placer:
             lib = ctypes.CDLL('libX11.so.6')
         except (OSError, ImportError, ValueError):
             return None
-        return cls(lib)
+        placer = cls(lib)
+        return placer if placer.dpy else None  # sem conexão com o X: segue sem posicionar
 
     def __init__(self, lib):
         self.lib = lib
@@ -408,7 +409,7 @@ class X11Placer:
         lib.XFree.argtypes = [ctypes.c_void_p]
         self.rect = None
         self.dpy = lib.XOpenDisplay(None)
-        self.root = lib.XDefaultRootWindow(self.dpy)
+        self.root = lib.XDefaultRootWindow(self.dpy) if self.dpy else 0
 
     def atom(self, name):
         return self.lib.XInternAtom(self.dpy, name.encode(), 0)
@@ -428,13 +429,11 @@ class X11Placer:
         self.lib.XChangeProperty(self.dpy, xid, self.atom('_NET_WM_STATE'), self.atom('ATOM'), 32, 0, states, 3)
         self.lib.XFlush(self.dpy)
 
-    def pointer(self, with_buttons=False):
+    def pointer(self):
         ints = [ctypes.c_int() for _ in range(4)]
         child, root_win, mask = ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_uint()
         self.lib.XQueryPointer(self.dpy, self.root, ctypes.byref(root_win), ctypes.byref(child), ctypes.byref(ints[0]),
                                ctypes.byref(ints[1]), ctypes.byref(ints[2]), ctypes.byref(ints[3]), ctypes.byref(mask))
-        if with_buttons:
-            return ints[0].value, ints[1].value, bool(mask.value & (0x100 | 0x200 | 0x400))
         return ints[0].value, ints[1].value
 
     def watch_clicks(self, on_click):
@@ -520,7 +519,10 @@ class X11Placer:
 
 
 class PanelWindow:
-    def __init__(self, state_path, config_path, collector, on_hide=None):
+    def __init__(self, state_path, config_path, collector, on_hide=None, dock=False):
+        # dock=True: janela comum, com a logo na barra de baixo do sistema; o
+        # clique no ícone de lá abre e minimiza, como qualquer programa.
+        self.dock = dock
         self.state_path = state_path
         self.config_path = config_path
         self.collector = collector
@@ -531,6 +533,7 @@ class PanelWindow:
         self.details = set()
         self.refreshing = False
         self.hidden_at = 0.0
+        self.scroll_position = 0.0
         self.update_status = None
         self.refresh_label = None
         self.state = None
@@ -541,9 +544,18 @@ class PanelWindow:
         provider.load_from_string(CSS)
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+        Gtk.Window.set_default_icon_name('tokenbar')
         self.window = Gtk.Window(title='TokenBar', decorated=False, resizable=False)
         self.window.add_css_class('tokenbar')
         self.window.set_default_size(CONTENT_WIDTH + 2 * 12 + 2, -1)
+        if dock:
+            self.x11 = None
+            self.layer = False
+            keys = Gtk.EventControllerKey()
+            keys.connect('key-pressed', lambda _c, key, *_: (self.window.minimize(), True)[1] if key == Gdk.KEY_Escape else False)
+            self.window.add_controller(keys)
+            self.window.connect('close-request', lambda *_: (self.window.minimize(), True)[1])
+            return
         self.x11 = X11Placer.create()
         if self.x11:
             self.window.connect('realize', lambda *_: self.x11.prepare(self.window))
@@ -626,6 +638,11 @@ class PanelWindow:
         scroller.set_max_content_height(max(240, height - 330))
         scroller.set_propagate_natural_height(True)
         scroller.set_child(content)
+        # Dados novos redesenham o painel: a rolagem continua onde estava.
+        adjustment = scroller.get_vadjustment()
+        position = self.scroll_position
+        GLib.idle_add(lambda: (adjustment.set_value(position), False)[1])
+        adjustment.connect('value-changed', lambda a: setattr(self, 'scroll_position', a.get_value()))
         return scroller
 
     def _main(self, popup, stale):
@@ -858,7 +875,6 @@ class PanelWindow:
     def _settings(self, popup):
         w = self.words
         config = self.read_config()
-        bar = config.get('bar') if isinstance(config.get('bar'), dict) else {}
         cards = box(True, 8)
 
         accounts = box(True, 12, 'card')
@@ -888,6 +904,9 @@ class PanelWindow:
                                                        lambda v: self.set_bar('showRemaining', v == 'remaining'))))
         display.append(labeled(w('s_currency'), choice([('brl', w('brl')), ('usd', w('usd'))], self.options['currency'],
                                                         lambda v: self.set_bar('currency', v))))
+        dock = Gtk.Switch(active=config.get('dock') is True, valign=Gtk.Align.CENTER)
+        dock.connect('notify::active', lambda sw, _p: self.set_config('dock', True if sw.get_active() else None))
+        display.append(setting_row(w('s_dock'), dock))
         display.append(labeled(w('s_label'), choice([('critical', w('label_critical')), ('all', w('label_all')), ('none', w('label_none'))],
                                                      self.options['label'], lambda v: self.set_bar('label', v))))
         cards.append(display)
@@ -986,6 +1005,7 @@ class PanelWindow:
 
     def toggle_view(self):
         self.view = 'main' if self.view == 'settings' else 'settings'
+        self.scroll_position = 0.0
         GLib.idle_add(lambda: (self.render(), False)[1])
 
     def refresh(self):
@@ -1016,7 +1036,10 @@ class PanelWindow:
             Gio.AppInfo.launch_default_for_uri(uri, None)
         except GLib.Error:
             pass
-        self.hide()
+        if self.dock:
+            self.window.minimize()  # continua na barra de baixo
+        else:
+            self.hide()
 
     # ---- mostrar/esconder
 
@@ -1040,6 +1063,7 @@ class PanelWindow:
 
     def show(self, x=None, y=None):
         self.view = 'main'
+        self.scroll_position = 0.0
         self.render()
         if self.layer:
             self.anchor(x, y)
@@ -1061,6 +1085,16 @@ class PanelWindow:
                 self.on_hide()
 
     def toggle(self, x=None, y=None):
+        if self.dock:
+            # Aberto: minimiza para a barra; minimizado: traz de volta. (No Wayland
+            # uma janela aberta por D-Bus nem sempre ganha o foco, então o que
+            # vale é o estado da janela, não o foco.)
+            if self.visible and not self.minimized:
+                self.window.minimize()
+            else:
+                self.render()
+                self.window.present()
+            return
         if self.visible:
             self.hide()
         elif time.monotonic() - self.hidden_at < 0.4:
@@ -1068,6 +1102,18 @@ class PanelWindow:
             return
         else:
             self.show(x, y)
+
+    @property
+    def minimized(self):
+        surface = self.window.get_surface()
+        return bool(surface and hasattr(surface, 'get_state') and surface.get_state() & Gdk.ToplevelState.MINIMIZED)
+
+    def start_minimized(self):
+        """Modo dock: aparece já na barra de baixo, minimizado, desde o login.
+        O compositor só aceita minimizar depois que a janela terminou de aparecer."""
+        self.render()
+        self.window.present()
+        GLib.timeout_add(1500, lambda: (self.window.minimize(), False)[1])
 
     def reload_if_visible(self):
         if self.visible and self.view == 'main' and not self.refreshing:
@@ -1079,13 +1125,29 @@ class PanelWindow:
         return False
 
 
+APP_ID = 'io.github.diogobritodesign.TokenBar'
+
+
 def main():
+    """Janela aberta pelo ícone da dock. Uma instância só: clicar de novo no
+    ícone esconde o painel (não fecha o programa) e o próximo clique o mostra."""
     state_path, config_path, collector = core.default_paths()
-    loop = GLib.MainLoop()
-    panel = PanelWindow(state_path, config_path, collector, on_hide=loop.quit)
-    panel.show()
-    loop.run()
-    return 0
+    app = Gtk.Application(application_id=APP_ID)
+    panel = None
+
+    def activate(_app):
+        nonlocal panel
+        if panel is None:
+            app.hold()  # continua rodando com o painel escondido
+            panel = PanelWindow(state_path, config_path, collector)
+            panel.window.set_application(app)
+            monitor = Gio.File.new_for_path(os.path.dirname(state_path)).monitor_directory(Gio.FileMonitorFlags.NONE, None)
+            monitor.connect('changed', lambda *_: panel.reload_if_visible())
+            panel.monitor = monitor
+        panel.toggle()
+
+    app.connect('activate', activate)
+    return app.run([sys.argv[0]])
 
 
 if __name__ == '__main__':

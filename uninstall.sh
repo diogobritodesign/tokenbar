@@ -18,6 +18,12 @@ dconf reset -f /org/gnome/shell/extensions/tokenbar/ 2>/dev/null || true
 echo "==> Tray icon"
 pkill -f "tokenbar_tray.py" 2>/dev/null || true
 rm -f "$HOME/.config/autostart/tokenbar-tray.desktop" "$HOME/.local/share/icons/hicolor/scalable/apps/tokenbar.svg"
+rm -f "$HOME/.local/share/applications/io.github.diogobritodesign.TokenBar.desktop" "$HOME/.local/bin/tokenbar-open"
+# Tira o atalho da dock, se estava fixado.
+if command -v gsettings >/dev/null; then
+  fav="$(gsettings get org.gnome.shell favorite-apps 2>/dev/null || true)"
+  [[ "$fav" == *io.github.diogobritodesign.TokenBar.desktop* ]] && gsettings set org.gnome.shell favorite-apps "$(echo "$fav" | sed "s/, *'io.github.diogobritodesign.TokenBar.desktop'//; s/'io.github.diogobritodesign.TokenBar.desktop', *//")"
+fi
 
 echo "==> Collector"
 systemctl --user disable --now tokenbar-collector.service 2>/dev/null || true

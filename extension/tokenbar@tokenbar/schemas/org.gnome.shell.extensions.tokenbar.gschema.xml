@@ -67,6 +67,14 @@
       <default>true</default>
       <summary>Desfocar o que fica atrás do painel (desligado, o fundo fica quase opaco)</summary>
     </key>
+    <key name="dock-icon" type="b">
+      <default>false</default>
+      <summary>Ícone do TokenBar fixado na dock; o clique abre o painel</summary>
+    </key>
+    <key name="open-request" type="x">
+      <default>0</default>
+      <summary>Interno: o atalho da dock grava aqui para abrir o painel</summary>
+    </key>
     <key name="show-remaining" type="b">
       <default>true</default>
       <summary>Mostrar o percentual restante (medidores esvaziam) em vez do usado</summary>

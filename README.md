@@ -53,6 +53,10 @@ the installer).
 - **Settings inside the panel**: accounts, what the bar shows, colour
   thresholds, goals, currency, language, collector interval, position.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
+- **Dock icon** (optional, on every desktop): the TokenBar logo in the dock or
+  taskbar. On GNOME a click opens the top-bar panel; elsewhere it opens the same
+  panel and a second click minimizes it back to the bar. The icon is just the
+  logo, with no numbers on it.
 - **Update notice**: once a day it checks GitHub for a newer version and shows
   a banner (can be turned off) with an **Update now** button that runs
   `git pull && ./install.sh` for you in the folder you installed from, and
@@ -150,13 +154,17 @@ On Wayland, `gtk4-layer-shell` lets the panel open in the corner next to the
 icon. Tested with real mouse clicks on KDE Plasma 6 (Wayland and X11), Xfce
 and Cinnamon.
 
-Options live in the `"bar"` block of `~/.config/tokenbar/config.json`:
+All of these can be changed in the panel's settings; they are stored in
+`~/.config/tokenbar/config.json`:
 
 ```json
-{ "language": "en", "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "usd" } }
+{ "language": "en", "dock": true, "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "usd" } }
 ```
 
 `label` can be `critical` (the most critical account), `all` or `none`.
+`"dock": true` keeps TokenBar in the taskbar as a regular program (the logo
+only): it starts minimized at login, a click on it opens the panel and the next
+click minimizes it again.
 
 ### Waybar and Polybar
 
@@ -293,8 +301,8 @@ whether a logout is needed. To try panel changes without logging out,
 
 ```sh
 npm test                    # 69 Node tests + 11 Python tests (tray)
-scripts/ui-test.sh          # 54 checks against a real headless GNOME Shell
-scripts/tray-test.sh        # 18 checks of the tray icon and its panel over D-Bus, same isolated setup
+scripts/ui-test.sh          # 58 checks against a real headless GNOME Shell
+scripts/tray-test.sh        # 22 checks of the tray icon, its panel and the dock mode over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity
 scripts/embedded-test.sh    # packaged extension running its own GJS collector, no Node
 scripts/preview.sh --demo   # nested shell with demo data

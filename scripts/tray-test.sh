@@ -75,6 +75,17 @@ fi
 gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 1200 10 >/dev/null; sleep 1
 check "um segundo clique fecha a janela" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.minimized && w.showing_on_its_workspace())\"" false)" "false"
 
+# Opção "ícone na dock": um TokenBar comum, minimizado, só com a logo.
+echo '{"language": "pt", "dock": true}' > "$XDG_CONFIG_HOME/tokenbar/config.json"
+check "ícone na dock: janela comum aparece minimizada" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && w.minimized && !w.skip_taskbar)\"" true)" "true"
+# A barra de tarefas restaura a janela minimizada sozinha (com o foco); aqui o shell faz esse papel.
+ev "(() => { const w = global.display.list_all_windows().find(w => w.get_title() === 'TokenBar' && !w.skip_taskbar); w.unminimize(); w.activate(global.get_current_time()); return 1; })()" >/dev/null
+check "clique na barra traz o painel" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.minimized && !w.skip_taskbar)\"" true)" "true"
+gdbus call --session --dest io.github.diogobritodesign.TokenBar.Tray --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 0 0 >/dev/null
+check "clique de novo minimiza (não fecha)" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && w.minimized)\"" true)" "true"
+echo '{"language": "pt"}' > "$XDG_CONFIG_HOME/tokenbar/config.json"
+check "desligar a opção tira da barra" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.skip_taskbar && w.minimized)\"" false)" "false"
+
 # Muda o estado e confere que a bandeja acompanha sem reiniciar.
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"
 echo '{"language": "en", "bar": {"label": "all"}}' > "$XDG_CONFIG_HOME/tokenbar/config.json"

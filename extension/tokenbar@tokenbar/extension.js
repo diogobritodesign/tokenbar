@@ -15,6 +15,8 @@ Gio._promisify(Gio.Subprocess.prototype, 'wait_async');
 
 // Espera antes de reabrir o painel depois de recriar o indicador.
 const REOPEN_DELAY_MS = 150;
+// O atalho da dock, instalado pelo install.sh: só o ícone; o clique abre o painel.
+const DOCK_APP = 'io.github.diogobritodesign.TokenBar.desktop';
 // Se o coletor embutido sair sozinho, espera isto antes de subir de novo.
 const EMBEDDED_RESTART_S = 60;
 
@@ -40,6 +42,7 @@ export default class TokenBarExtension extends Extension {
     }
 
     enable() {
+        readLoadedCommit(this.dir);  // já na carga: depois, o install.sh pode trocar o arquivo
         this._settings = this.getSettings();
         this._recreateId = 0;
         this._reopenId = 0;
@@ -57,6 +60,8 @@ export default class TokenBarExtension extends Extension {
             'changed::panel-position', () => this._queueRecreate(),
             'changed::panel-index', () => this._queueRecreate(),
             'changed::language', () => this._applyLanguage(true),
+            'changed::dock-icon', () => this._applyDockIcon(),
+            'changed::open-request', () => this._indicator?.menu.toggle(),
             'changed::collector-interval', () => this._writeCollectorConfig(),
             'changed::update-check', () => this._writeCollectorConfig(),
             'changed::disabled-providers', () => this._writeCollectorConfig(),
@@ -121,6 +126,18 @@ export default class TokenBarExtension extends Extension {
 
     // Avisa quando uma janela cruza o limite vermelho e quando ela libera
     // depois disso. A primeira leitura só registra o estado, sem avisar.
+    // Fixa ou tira o ícone do TokenBar da dock (a lista de favoritos do GNOME).
+    _applyDockIcon() {
+        const shell = new Gio.Settings({schema_id: 'org.gnome.shell'});
+        const favorites = shell.get_strv('favorite-apps');
+        const wanted = this._settings.get_boolean('dock-icon');
+        const exists = Gio.DesktopAppInfo.new(DOCK_APP) !== null;
+        if (wanted && exists && !favorites.includes(DOCK_APP))
+            shell.set_strv('favorite-apps', [...favorites, DOCK_APP]);
+        else if (!wanted && favorites.includes(DOCK_APP))
+            shell.set_strv('favorite-apps', favorites.filter(app => app !== DOCK_APP));
+    }
+
     checkAlerts(state) {
         if (!this._settings || !state || state.updatedAt === this._alertStamp)
             return;
