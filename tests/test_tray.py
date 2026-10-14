@@ -117,6 +117,21 @@ class IconAndMenuTests(unittest.TestCase):
         left = (11 * 22 + 1) * 4
         self.assertEqual(tuple(data[left + 1:left + 4]), tray.TRACK)
 
+    def test_ring_pixmap_writes_the_number_inside(self):
+        for size in (16, 22, 48):
+            _, _, data = tray.ring_pixmap(size, 0.62, 'ok', 62)
+            pixel = lambda x, y: tuple(data[(y * size + x) * 4:(y * size + x) * 4 + 4])
+            colours = {pixel(x, y)[1:] for x in range(size) for y in range(size) if pixel(x, y)[0] == 255}
+            # Miolo escuro e algarismos na cor do nível, sem encostar no anel.
+            self.assertIn(tray.DISC, colours)
+            mask = tray.number_mask('62', size)
+            self.assertTrue(mask)
+            self.assertTrue(all(pixel(x, y)[1:] == tray.COLORS['ok'] for x, y in mask))
+            inner = size / 2 - 0.5 - max(1.5, size * 0.12)
+            centre = (size - 1) / 2
+            self.assertTrue(all(((x - centre) ** 2 + (y - centre) ** 2) ** 0.5 < inner for x, y in mask))
+        self.assertTrue(tray.number_mask('100', 16))
+
     def test_menu_tree_ids_and_actions(self):
         calls = []
         actions = {name: (lambda name=name: calls.append(name)) for name in ('refresh', 'update', 'site', 'code', 'quit')}

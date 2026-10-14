@@ -27,6 +27,7 @@ AUTHOR_URL = 'https://diogobrito.com.br/'
 
 # Trilho do anel, o mesmo grafite do logo (assets/tokenbar-mark.svg).
 TRACK = (0x3a, 0x3f, 0x46)
+DISC = (0x0f, 0x0f, 0x10)
 COLORS = {'ok': (0x4f, 0xe3, 0x7b), 'warn': (0xec, 0xe3, 0x8f), 'crit': (0xff, 0x7b, 0x72), 'off': (0x6b, 0x6b, 0x70)}
 SOFT_STATUSES = ('ok', 'rate_limited', 'idle')
 LEVEL_ORDER = ('off', 'ok', 'warn', 'crit')
@@ -197,6 +198,10 @@ class View:
         worst = self.critical()
         return self.level(worst) if worst else 'off'
 
+    def ring_number(self):
+        worst = self.critical()
+        return self.shown(worst_used(worst)) if worst else None
+
     def ring_fraction(self):
         worst = self.critical()
         return self.shown(worst_used(worst)) / 100 if worst else None
@@ -269,21 +274,79 @@ class View:
 # ---------------------------------------------------------------- ícone
 
 
-def ring_pixmap(size, fraction, level):
-    """Anel de progresso em ARGB32 com bytes em ordem de rede, como o protocolo pede."""
+# Algarismos em bitmap (sem depender de fontes nem do cairo): 5x7 para dois
+# dígitos e 3x5 para "100" e para ícones pequenos (16 px), onde o 5x7 encosta no anel.
+DIGITS_5X7 = {
+    '0': ('01110', '10001', '10011', '10101', '11001', '10001', '01110'),
+    '1': ('00100', '01100', '00100', '00100', '00100', '00100', '01110'),
+    '2': ('01110', '10001', '00001', '00010', '00100', '01000', '11111'),
+    '3': ('11110', '00001', '00001', '01110', '00001', '00001', '11110'),
+    '4': ('00010', '00110', '01010', '10010', '11111', '00010', '00010'),
+    '5': ('11111', '10000', '11110', '00001', '00001', '10001', '01110'),
+    '6': ('00110', '01000', '10000', '11110', '10001', '10001', '01110'),
+    '7': ('11111', '00001', '00010', '00100', '01000', '01000', '01000'),
+    '8': ('01110', '10001', '10001', '01110', '10001', '10001', '01110'),
+    '9': ('01110', '10001', '10001', '01111', '00001', '00010', '01100'),
+}
+DIGITS_3X5 = {
+    '0': ('111', '101', '101', '101', '111'), '1': ('010', '110', '010', '010', '111'),
+    '2': ('111', '001', '111', '100', '111'), '3': ('111', '001', '011', '001', '111'),
+    '4': ('101', '101', '111', '001', '001'), '5': ('111', '100', '111', '001', '111'),
+    '6': ('111', '100', '111', '101', '111'), '7': ('111', '001', '010', '010', '010'),
+    '8': ('111', '101', '111', '101', '111'), '9': ('111', '101', '111', '001', '111'),
+}
+
+
+def number_mask(text, size):
+    """Cobertura (0..1) de cada pixel do número centralizado num ícone size x size."""
+    font = DIGITS_5X7 if len(text) <= 2 and size >= 20 else DIGITS_3X5
+    glyph_w, glyph_h = len(font['0'][0]), len(font['0'])
+    scale = max(1, round(size / 22))
+    width = (len(text) * (glyph_w + 1) - 1) * scale
+    height = glyph_h * scale
+    left, top = (size - width) // 2, (size - height) // 2
+    mask = {}
+    for index, char in enumerate(text):
+        rows = font.get(char)
+        if rows is None:
+            continue
+        for gy, row in enumerate(rows):
+            for gx, bit in enumerate(row):
+                if bit != '1':
+                    continue
+                for sy in range(scale):
+                    for sx in range(scale):
+                        x = left + (index * (glyph_w + 1) + gx) * scale + sx
+                        mask[(x, top + gy * scale + sy)] = 1.0
+    return mask
+
+
+def ring_pixmap(size, fraction, level, number=None):
+    """Anel de progresso em ARGB32 com bytes em ordem de rede, como o protocolo
+    pede. Com `number`, o percentual vai escrito dentro do anel — para os
+    desktops (KDE, Xfce, Cinnamon) que não mostram texto ao lado do ícone."""
     red, green, blue = COLORS[level]
     pixels = bytearray(size * size * 4)
     center = (size - 1) / 2
     outer = size / 2 - 0.5
-    inner = outer - max(2.0, size * 0.2)
+    inner = outer - (max(1.5, size * 0.12) if number is not None else max(2.0, size * 0.2))
     sweep = None if fraction is None else max(0.0, min(1.0, fraction)) * 2 * math.pi
+    text = number_mask(str(number), size) if number is not None else {}
     for y in range(size):
         for x in range(size):
+            if (x, y) in text:
+                offset = (y * size + x) * 4
+                pixels[offset:offset + 4] = bytes((255, red, green, blue))
+                continue
             dx, dy = x - center, y - center
             distance = math.hypot(dx, dy)
             # Borda suavizada: cobertura do pixel pelo anel.
             coverage = max(0.0, min(1.0, outer - distance + 0.5)) * max(0.0, min(1.0, distance - inner + 0.5))
             if coverage <= 0:
+                if number is not None and distance < inner:
+                    # Miolo escuro, como no logo: o número fica legível em barra clara ou escura.
+                    offset = (y * size + x) * 4
+                    pixels[offset:offset + 4] = bytes((255, *DISC))
                 continue
             angle = (math.atan2(dx, -dy)) % (2 * math.pi)  # 0 no topo, sentido horário
             filled = sweep is not None and angle <= sweep
@@ -449,6 +512,7 @@ class Tray:
         self.view = None
         self.menu_root, self.menu_items = None, {}
         self.menu_ids = MenuIds()
+        self.number_in_icon = 'GNOME' not in os.environ.get('XDG_CURRENT_DESKTOP', '').upper()
         self.panel = None  # janela GTK 4, criada no primeiro clique; False = indisponível
         self.item_info = Gio.DBusNodeInfo.new_for_xml(ITEM_XML).interfaces[0]
         self.menu_info = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
@@ -519,7 +583,10 @@ class Tray:
         if name in ('IconName', 'AttentionIconName'):
             return GLib.Variant('s', '')
         if name == 'IconPixmap':
-            return GLib.Variant('a(iiay)', [ring_pixmap(size, view.ring_fraction(), view.overall_level()) for size in (22, 32, 48)])
+            # Só o GNOME (extensão AppIndicator) mostra o texto ao lado do ícone;
+            # nos outros desktops o percentual vai dentro do anel.
+            number = view.ring_number() if self.number_in_icon and view.options['label'] != 'none' else None
+            return GLib.Variant('a(iiay)', [ring_pixmap(size, view.ring_fraction(), view.overall_level(), number) for size in (16, 22, 24, 32, 48)])
         if name == 'ToolTip':
             return GLib.Variant('(sa(iiay)ss)', ('', [], 'TokenBar', view.tooltip()))
         if name == 'ItemIsMenu':

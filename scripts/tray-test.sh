@@ -43,6 +43,8 @@ sleep 3
 
 ev() { gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval "$1" | sed -E "s/^\(true, '(.*)'\)$/\1/"; }
 check() { if [[ "$2" == "$3" ]]; then echo "  ok    $1"; else echo "  FALHA $1 (obtido: $2 | esperado: $3)"; FAILS=$((FAILS + 1)); fi; }
+# Espera a condição em vez de dormir um tempo fixo: o teste não pode depender de a máquina estar folgada.
+eventually() { local i out; for i in $(seq 40); do out="$(eval "$2")"; [[ "$out" == $3 ]] && break; sleep 0.25; done; echo "$out"; }
 contains() { if [[ "$2" == *"$3"* ]]; then echo "  ok    $1"; else echo "  FALHA $1 (sem \"$3\" em: ${2:0:200})"; FAILS=$((FAILS + 1)); fi; }
 
 NAME="org.kde.StatusNotifierItem-$(cat "$WORK/tray.pid")-1"
@@ -53,7 +55,7 @@ get() { gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --
 # Nos dados de demonstração o Antigravity tem uma janela em 100% de uso: é a mais crítica.
 check "rótulo com a conta mais crítica" "$(get XAyatanaLabel)" "(<'AG 0%'>,)"
 check "status fixo (o alerta fica na cor do anel)" "$(get Status)" "(<'Active'>,)"
-contains "ícone desenhado em três tamanhos" "$(get IconPixmap | head -c 40)" "[(22, 22,"
+contains "ícone desenhado em vários tamanhos" "$(get IconPixmap | head -c 40)" "[(16, 16,"
 contains "dica com as contas" "$(get ToolTip)" "Claude (trabalho): 12% restante"
 LAYOUT="$(gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1)"
 contains "menu: cabeçalho" "$LAYOUT" "TokenBar · atualizado há"
@@ -66,20 +68,20 @@ check "o host mostra o ícone na barra" "$(ev "Object.keys(Main.panel.statusArea
 # Clique esquerdo: abre a janela com o mesmo design do painel do GNOME.
 check "o clique abre o painel, não o menu" "$(get ItemIsMenu)" "(<false>,)"
 gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 1200 10 >/dev/null; sleep 2
-check "a janela do painel aparece" "$(ev "global.display.list_all_windows().some(w => w.get_title() === 'TokenBar')")" "true"
+check "a janela do painel aparece" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar')\"" true)" "true"
 if [[ -n "$SHOTS" ]]; then
   gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.Screenshot false false "$SHOTS/tray-panel.png" >/dev/null
 fi
 gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 1200 10 >/dev/null; sleep 1
-check "um segundo clique fecha a janela" "$(ev "global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.minimized && w.showing_on_its_workspace())")" "false"
+check "um segundo clique fecha a janela" "$(eventually x "ev \"global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.minimized && w.showing_on_its_workspace())\"" false)" "false"
 
 # Muda o estado e confere que a bandeja acompanha sem reiniciar.
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"
 echo '{"language": "en", "bar": {"label": "all"}}' > "$XDG_CONFIG_HOME/tokenbar/config.json"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"
-sleep 2
-check "acompanha o state.json e o config.json" "$(get XAyatanaLabel)" "(<'CLD 62%  CLD2 12%  OAI 53%  AG 0%  GH 85%'>,)"
-contains "menu em inglês depois da troca" "$(gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1)" "Refresh now"
+check "acompanha o state.json e o config.json" "$(eventually x "get XAyatanaLabel" "*CLD2*")" "(<'CLD 62%  CLD2 12%  OAI 53%  AG 0%  GH 85%'>,)"
+contains "menu em inglês depois da troca" "$(eventually x "gdbus call --session --dest $NAME --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1" "*Refresh now*")" "Refresh now"
+: "$(gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1)" "Refresh now"
 
 if [[ -n "$SHOTS" ]]; then
   ev "Main.overview.hide(); 1" >/dev/null; sleep 1
@@ -89,8 +91,8 @@ if [[ -n "$SHOTS" ]]; then
 fi
 # "Sair" pelo menu encerra o processo.
 QUIT_ID="$(gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' | grep -o "([0-9]*, {'label': <'Quit'>" | grep -o '^([0-9]*' | tr -d '(')"
-gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.Event "$QUIT_ID" clicked '<0>' 'uint32 0' >/dev/null; sleep 1
-check "\"Quit\" encerra a bandeja" "$(kill -0 "$(cat "$WORK/tray.pid")" 2>/dev/null && echo vivo || echo encerrado)" "encerrado"
+gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.Event "$QUIT_ID" clicked '<0>' 'uint32 0' >/dev/null
+check "\"Quit\" encerra a bandeja" "$(eventually x 'kill -0 "$(cat "$WORK/tray.pid")" 2>/dev/null && echo vivo || echo encerrado' encerrado)" "encerrado"
 check "sem erros nem avisos do Python" "$(grep -c -E 'Traceback|Error|Warning' "$WORK/tray.log")" "0"
 kill $SHELL_PID; wait $SHELL_PID 2>/dev/null
 echo

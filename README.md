@@ -248,9 +248,9 @@ split.
   by a left click looks the same everywhere and opens next to the icon (on
   Wayland this needs gtk4-layer-shell; without it the desktop places the
   window). Tested with real clicks on KDE Plasma 6 (Wayland and X11), Xfce and
-  Cinnamon, and on GNOME's tray host. The percentage text next to the icon is
-  only shown by desktops that support it; Plasma, Xfce and Cinnamon show just
-  the ring.
+  Cinnamon, and on GNOME's tray host. GNOME shows the percentage as text next to
+  the icon; Plasma, Xfce and Cinnamon don't support that text, so there the
+  number is drawn inside the ring.
 
 ## Troubleshooting
 
@@ -269,7 +269,7 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 ## Development
 
 ```sh
-npm test                    # 69 Node tests + 10 Python tests (tray)
+npm test                    # 69 Node tests + 11 Python tests (tray)
 scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
 scripts/tray-test.sh        # 18 checks of the tray icon and its panel over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity

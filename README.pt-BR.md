@@ -230,9 +230,9 @@ divisão.
   painel do clique esquerdo é igual em todos e abre junto do ícone (no
   Wayland isso precisa do gtk4-layer-shell; sem ele, o desktop posiciona a
   janela). Testado com cliques reais no KDE Plasma 6 (Wayland e X11), Xfce e
-  Cinnamon, e no host de bandeja do GNOME. O percentual em texto ao lado do
-  ícone só aparece nos desktops que suportam isso; Plasma, Xfce e Cinnamon
-  mostram só o anel.
+  Cinnamon, e no host de bandeja do GNOME. O GNOME mostra o percentual em texto ao
+  lado do ícone; Plasma, Xfce e Cinnamon não aceitam esse texto, então lá o
+  número vai desenhado dentro do anel.
 
 ## Resolução de problemas
 
@@ -252,7 +252,7 @@ shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 69 testes em Node + 10 em Python (bandeja)
+npm test                    # 69 testes em Node + 11 em Python (bandeja)
 scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 18 verificações da bandeja e do painel pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS

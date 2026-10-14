@@ -400,6 +400,7 @@ class X11Placer:
                                            ctypes.c_int, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
                                            ctypes.c_void_p, ctypes.c_void_p]
         lib.XFree.argtypes = [ctypes.c_void_p]
+        self.rect = None
         self.dpy = lib.XOpenDisplay(None)
         self.root = lib.XDefaultRootWindow(self.dpy)
 
@@ -421,12 +422,62 @@ class X11Placer:
         self.lib.XChangeProperty(self.dpy, xid, self.atom('_NET_WM_STATE'), self.atom('ATOM'), 32, 0, states, 3)
         self.lib.XFlush(self.dpy)
 
-    def pointer(self):
+    def pointer(self, with_buttons=False):
         ints = [ctypes.c_int() for _ in range(4)]
         child, root_win, mask = ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_uint()
         self.lib.XQueryPointer(self.dpy, self.root, ctypes.byref(root_win), ctypes.byref(child), ctypes.byref(ints[0]),
                                ctypes.byref(ints[1]), ctypes.byref(ints[2]), ctypes.byref(ints[3]), ctypes.byref(mask))
+        if with_buttons:
+            return ints[0].value, ints[1].value, bool(mask.value & (0x100 | 0x200 | 0x400))
         return ints[0].value, ints[1].value
+
+    def watch_clicks(self, on_click):
+        """Avisa de todo clique na tela (XInput2, eventos "raw": não prende o
+        mouse de ninguém). Assim o painel fecha com um clique fora mesmo onde
+        não há janela para receber o foco — o fundo vazio, por exemplo."""
+        try:
+            xi = ctypes.CDLL('libXi.so.6')
+        except OSError:
+            return False
+
+        class EventMask(ctypes.Structure):
+            _fields_ = [('deviceid', ctypes.c_int), ('mask_len', ctypes.c_int), ('mask', ctypes.c_void_p)]
+
+        self.lib.XConnectionNumber.argtypes = [ctypes.c_void_p]
+        self.lib.XPending.argtypes = [ctypes.c_void_p]
+        self.lib.XNextEvent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        xi.XIQueryVersion.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+        xi.XISelectEvents.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_int]
+        events = self.lib.XOpenDisplay(None)
+        major, minor = ctypes.c_int(2), ctypes.c_int(0)
+        if not events or xi.XIQueryVersion(events, ctypes.byref(major), ctypes.byref(minor)) != 0:
+            return False
+        bits = (ctypes.c_ubyte * 4)()
+        bits[15 >> 3] |= 1 << (15 & 7)  # XI_RawButtonPress
+        mask = EventMask(1, 4, ctypes.cast(bits, ctypes.c_void_p))  # XIAllMasterDevices
+        xi.XISelectEvents(events, self.lib.XDefaultRootWindow(events), ctypes.byref(mask), 1)
+        self.lib.XFlush(events)
+        buffer = ctypes.create_string_buffer(256)
+
+        def drain(*_):
+            pressed = False
+            while self.lib.XPending(events):
+                self.lib.XNextEvent(events, buffer)
+                pressed = True
+            if pressed:
+                on_click()
+            return True
+
+        self._keep = (xi, events, bits, mask, buffer)
+        GLib.unix_fd_add_full(GLib.PRIORITY_DEFAULT, self.lib.XConnectionNumber(events), GLib.IOCondition.IN, drain)
+        return True
+
+    def outside(self):
+        if self.rect is None:
+            return False
+        x, y = self.pointer()
+        left, top, width, height = self.rect
+        return not (left <= x < left + width and top <= y < top + height)
 
     def workarea(self, fallback):
         kind, fmt, count, rest = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong()
@@ -456,6 +507,7 @@ class X11Placer:
         y = top + margin if py < top + area_h / 2 else top + area_h - height - margin
         self.lib.XMoveWindow(self.dpy, xid, x, y)
         self.lib.XFlush(self.dpy)
+        self.rect = (x, y, width, height)
 
 
 # ---------------------------------------------------------------- janela
@@ -472,6 +524,7 @@ class PanelWindow:
         self.expanded = None  # contas abertas; None = só a primeira
         self.details = set()
         self.refreshing = False
+        self.hidden_at = 0.0
         self.refresh_label = None
         self.state = None
         self.options = None
@@ -487,6 +540,7 @@ class PanelWindow:
         self.x11 = X11Placer.create()
         if self.x11:
             self.window.connect('realize', lambda *_: self.x11.prepare(self.window))
+            self.x11.watch_clicks(self._click_anywhere)
         self.layer = False
         if not self.x11 and LayerShell and is_wayland() and LayerShell.is_supported():
             self.layer = True
@@ -956,10 +1010,16 @@ class PanelWindow:
         self.window.present()
         if self.x11:
             # O gerenciador de janelas só aceita a posição depois de mapear.
+            self.x11.rect = None
             GLib.timeout_add(30, lambda: (self.x11.place(self.window), False)[1])
+
+    def _click_anywhere(self):
+        if self.window.get_visible() and self.x11.outside():
+            self.hide()
 
     def hide(self):
         if self.window.get_visible():
+            self.hidden_at = time.monotonic()
             self.window.set_visible(False)
             if self.on_hide:
                 self.on_hide()
@@ -967,6 +1027,9 @@ class PanelWindow:
     def toggle(self, x=None, y=None):
         if self.visible:
             self.hide()
+        elif time.monotonic() - self.hidden_at < 0.4:
+            # Esse clique no ícone já fechou o painel (clique fora); não reabre.
+            return
         else:
             self.show(x, y)
 
