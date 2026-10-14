@@ -42,7 +42,15 @@ draws it.
   thresholds, goals, currency, language, collector interval, position.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
 - **Update notice**: once a day it checks GitHub for a newer version and shows
-  a banner (can be turned off).
+  a banner (can be turned off). An **About** card in the settings shows the
+  version, author, website and license.
+- **Refreshes right after you use** Claude Code or Codex (at most once a
+  minute), and at a fixed interval otherwise.
+- Translucent panel with a light **background blur** (can be turned off).
+- **Beyond GNOME**: a tray icon for KDE, Xfce, Cinnamon, MATE and other
+  desktops, and output for Waybar and Polybar.
+- **No Node.js needed** with the extension package: the collector also runs on
+  GJS, inside the extension.
 
 ## Supported providers
 
@@ -68,8 +76,10 @@ terminal CLI on its own is not detected).
 - GNOME Shell **48, 49 or 50** (developed and tested on Fedora 44 with GNOME
   50 on Wayland; 48 and 49 are declared compatible but not yet tested by the
   author; reports welcome).
-- Node.js **20+**, with no npm dependencies.
-- systemd user services (standard on Fedora, Ubuntu, Debian, Arch, openSUSE).
+- With `install.sh`: Node.js **20+** (no npm dependencies) and systemd user
+  services (standard on Fedora, Ubuntu, Debian, Arch, openSUSE).
+- With the extension package (`scripts/pack-extension.sh`): nothing beyond
+  GNOME itself; it uses the `gjs` that ships with GNOME.
 - `ss` from iproute2 (for Antigravity) and `gh` (for Copilot), both optional.
 
 On desktops other than GNOME the extension is replaced by a tray icon (see
@@ -192,7 +202,8 @@ Files it writes:
 | --- | --- |
 | `~/.cache/tokenbar/` | `state.json` and small caches (safe to delete) |
 | `~/.local/state/tokenbar/history.json` | daily usage history, 120 days |
-| `~/.config/tokenbar/config.json` | collector interval and disabled accounts |
+| `~/.config/tokenbar/config.json` | collector interval, disabled accounts, language and tray/bar options |
+| `~/.config/autostart/tokenbar-tray.desktop` | starts the tray icon at login (tray only) |
 
 ## Privacy and security
 
@@ -232,6 +243,9 @@ split.
 - Token/cost totals exist for Claude only.
 - The "runs out in" projection for monthly quotas is not computed.
 - Interface languages: English and Portuguese only.
+- **Tray icon**: the menu is drawn by each desktop, so on KDE, Xfce and others
+  it looks like that desktop's menus, not like the GNOME panel. It has been
+  tested against GNOME's tray host only.
 
 ## Troubleshooting
 

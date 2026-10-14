@@ -41,7 +41,15 @@ Shell desenha.
   cor, metas, moeda, idioma, intervalo do coletor, posição.
 - Atalho de teclado (`Super`+`Alt`+`T`) e exportação do histórico em CSV.
 - **Aviso de atualização**: uma vez por dia confere no GitHub se há versão nova
-  e mostra uma faixa no painel (dá para desligar).
+  e mostra uma faixa no painel (dá para desligar). Um cartão **Sobre** nas
+  configurações mostra a versão, o autor, o site e a licença.
+- **Atualiza logo depois que você usa** o Claude Code ou o Codex (no máximo uma
+  vez por minuto) e, fora isso, no intervalo definido.
+- Painel translúcido com **desfoque leve do fundo** (dá para desligar).
+- **Além do GNOME**: ícone de bandeja para KDE, Xfce, Cinnamon, MATE e outros
+  desktops, e saída para Waybar e Polybar.
+- **Sem precisar de Node.js** com o pacote da extensão: o coletor também roda
+  em GJS, dentro da extensão.
 
 ## Provedores
 
@@ -67,9 +75,10 @@ depende do próprio programa: o cartão dele precisa do Antigravity IDE aberto
 - GNOME Shell **48, 49 ou 50** (desenvolvido e testado no Fedora 44 com GNOME
   50 em Wayland; 48 e 49 estão declarados como compatíveis mas ainda não foram
   testados pelo autor — relatos são bem-vindos).
-- Node.js **20+**, sem dependências do npm.
-- Serviços de usuário do systemd (padrão no Fedora, Ubuntu, Debian, Arch,
-  openSUSE).
+- Pelo `install.sh`: Node.js **20+** (sem dependências do npm) e serviços de
+  usuário do systemd (padrão no Fedora, Ubuntu, Debian, Arch, openSUSE).
+- Pelo pacote da extensão (`scripts/pack-extension.sh`): nada além do próprio
+  GNOME; ele usa o `gjs` que já vem com o GNOME.
 - `ss` do iproute2 (para o Antigravity) e `gh` (para o Copilot), opcionais.
 
 Fora do GNOME, a extensão é trocada por um ícone de bandeja (veja
@@ -174,7 +183,8 @@ para fechar o ícone de bandeja pelo menu dele).
 | --- | --- |
 | `~/.cache/tokenbar/` | `state.json` e caches pequenos (pode apagar) |
 | `~/.local/state/tokenbar/history.json` | histórico diário de uso, 120 dias |
-| `~/.config/tokenbar/config.json` | intervalo do coletor e contas desligadas |
+| `~/.config/tokenbar/config.json` | intervalo do coletor, contas desligadas, idioma e opções da bandeja/barra |
+| `~/.config/autostart/tokenbar-tray.desktop` | abre o ícone de bandeja no login (só na bandeja) |
 
 ## Privacidade e segurança
 
@@ -214,6 +224,9 @@ divisão.
 - Totais de tokens e custo existem só para o Claude.
 - A projeção "esgota em" não é calculada para cotas mensais.
 - Idiomas da interface: só português e inglês.
+- **Ícone de bandeja**: o menu é desenhado por cada desktop, então no KDE, Xfce
+  e outros ele tem a cara dos menus daquele desktop, não a do painel do GNOME.
+  Só foi testado com o host de bandeja do GNOME.
 
 ## Resolução de problemas
 
