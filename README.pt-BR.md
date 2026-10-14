@@ -4,14 +4,24 @@
 
 [English](README.md) · **Português**
 
-Limites de uso de IA, sempre visíveis na barra superior do GNOME, na bandeja
-do sistema em outros desktops Linux, ou na Waybar/Polybar.
+Limites de uso de IA, sempre visíveis no seu desktop Linux.
 
 O TokenBar mostra quanto resta da sua cota do **Claude Code**, **Codex /
 ChatGPT**, **Antigravity** e **GitHub Copilot**, e abre um painel com os
-detalhes ao clicar. Sem Electron, sem janela flutuante, sem overlay: um
-coletor pequeno em Node grava um arquivo JSON e uma extensão nativa do GNOME
-Shell desenha.
+detalhes ao clicar. Sem Electron, sem janela flutuante: um coletor pequeno
+grava um arquivo JSON e uma parte nativa do seu desktop desenha.
+
+### Funciona em
+
+| Desktop | O que você tem |
+| --- | --- |
+| **GNOME** 48–50 | Extensão nativa na barra superior: um anel por conta e o painel completo. A versão mais completa. |
+| **KDE Plasma**, **Xfce**, **Cinnamon**, MATE, Budgie… | Ícone na bandeja com o percentual dentro do anel; o clique abre **o mesmo painel, com o mesmo design**. |
+| **Waybar** / **Polybar** (Sway, Hyprland, i3…) | Um módulo de barra com os percentuais. |
+
+O `./install.sh` detecta o seu desktop e instala a versão certa. Funciona em
+qualquer distro (desenvolvido no Fedora; o instalador cobre Ubuntu, Debian,
+Arch e openSUSE).
 
 ![Barra superior](docs/screenshots/top-bar.png)
 
@@ -43,13 +53,15 @@ Shell desenha.
 - **Aviso de atualização**: uma vez por dia confere no GitHub se há versão nova
   e mostra uma faixa no painel (dá para desligar), com um botão **Atualizar
   agora** que roda `git pull && ./install.sh` sozinho na pasta de onde você
-  instalou. Um cartão **Sobre** nas
-  configurações mostra a versão, o autor, o site e a licença.
+  instalou, e só pede para sair da sessão quando o código do painel mudou. Um
+  cartão **Sobre** nas configurações mostra a versão, o autor, o site e a
+  licença.
 - **Atualiza logo depois que você usa** o Claude Code ou o Codex (no máximo uma
   vez por minuto) e, fora isso, no intervalo definido.
 - Painel translúcido com **desfoque leve do fundo** (dá para desligar).
-- **Além do GNOME**: ícone de bandeja para KDE, Xfce, Cinnamon, MATE e outros
-  desktops, e saída para Waybar e Polybar.
+- **Além do GNOME**: no KDE Plasma, Xfce, Cinnamon, MATE e outros desktops, um
+  ícone de bandeja (com o percentual dentro do anel) abre **o mesmo painel**,
+  com o mesmo design. Também tem saída para Waybar e Polybar.
 - **Sem precisar de Node.js** com o pacote da extensão: o coletor também roda
   em GJS, dentro da extensão.
 
@@ -94,10 +106,13 @@ cd tokenbar
 ./install.sh
 ```
 
-Depois **encerre a sessão e entre de novo**.
+No GNOME, depois **encerre a sessão e entre de novo** (só desta primeira vez,
+veja abaixo). Nos outros desktops o ícone aparece na hora.
 
-Para atualizar depois: `git pull && ./install.sh`, e entre de novo na sessão. No Wayland, o GNOME Shell só
-carrega uma extensão nova (ou código novo de extensão) no início da sessão.
+Para atualizar depois, clique em **Atualizar agora** na faixa de atualização
+do painel, ou rode `git pull && ./install.sh`. Só é preciso sair da sessão de
+novo quando a atualização mudou o código do próprio painel do GNOME; o painel
+avisa qual é o caso.
 
 ### Sem Node.js (pacote da extensão)
 
@@ -117,21 +132,23 @@ histórico.
 
 No **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** e outros desktops com bandeja
 do sistema, o `./install.sh` instala um **ícone de bandeja** no lugar da
-extensão do GNOME: um anel da conta mais crítica, o percentual como texto (onde
-o desktop mostra texto). **O clique abre o mesmo painel da extensão do GNOME**
-(mesmos cartões, anéis, medidores, fonte e cores, com as configurações dentro);
-o botão direito mantém um menu simples. Ele abre sozinho no login. No GNOME dá para adicionar também
-com `./install.sh --tray` (precisa da extensão AppIndicator).
+extensão do GNOME: um anel da conta mais crítica, com o percentual desenhado
+dentro. **O clique abre o mesmo painel da extensão do GNOME** (mesmos cartões,
+anéis, medidores, fonte e cores, com as configurações dentro), junto do ícone,
+com a barra em cima ou embaixo; um clique em qualquer outro lugar fecha. O
+botão direito mantém um menu simples. Ele abre sozinho no login. No GNOME dá
+para adicionar também com `./install.sh --tray` (precisa da extensão
+AppIndicator).
 
 ![Painel aberto pelo ícone de bandeja](docs/screenshots/tray.png)
 
 Ele fala o protocolo padrão de bandeja (StatusNotifierItem) pelo D-Bus usando
 PyGObject e desenha o painel com GTK 4 (sem GTK 4, o clique volta a abrir o
-menu). Precisa do Python 3
-com PyGObject (`python3-gobject` no Fedora/openSUSE, `python3-gi` no
-Debian/Ubuntu, `python-gobject` no Arch). Foi testado com o host de bandeja do
-GNOME; ainda não foi testado no próprio KDE, Xfce ou Cinnamon — relatos são
-bem-vindos.
+menu). Precisa do Python 3 com PyGObject (`python3-gobject` no
+Fedora/openSUSE, `python3-gi` no Debian/Ubuntu, `python-gobject` no Arch). No
+Wayland, o `gtk4-layer-shell` faz o painel abrir no canto, junto do ícone.
+Testado com cliques reais do mouse no KDE Plasma 6 (Wayland e X11), Xfce e
+Cinnamon.
 
 As opções ficam no bloco `"bar"` do `~/.config/tokenbar/config.json`:
 
@@ -245,17 +262,20 @@ journalctl -f /usr/bin/gnome-shell              # erros da extensão
 tokenbar-collector --once && cat ~/.cache/tokenbar/state.json
 ```
 
-**Preciso mesmo encerrar a sessão depois de atualizar?** Para o *código* da
-extensão, sim no Wayland: o GNOME Shell não recarrega o JavaScript de uma
-extensão com a sessão aberta. Dados, configurações e o coletor nunca precisam
-disso. Para ver mudanças sem encerrar a sessão, `scripts/preview.sh` abre um
-shell aninhado numa janela.
+**Por que algumas atualizações pedem para sair da sessão?** No Wayland, o
+GNOME Shell *é* a sua sessão: ele carrega o JavaScript de cada extensão uma
+vez e mantém até você sair, e reiniciá-lo fecharia todos os programas abertos
+(o antigo `Alt+F2` → `r` só existia no X11). Isso vale para qualquer extensão
+do GNOME. Só mudanças no código do painel precisam disso: o coletor, os dados,
+as configurações e o ícone de bandeja nos outros desktops atualizam na hora, e
+o botão **Atualizar agora** avisa se é preciso sair. Para ver mudanças no
+painel sem sair, `scripts/preview.sh` abre um shell aninhado numa janela.
 
 ## Desenvolvimento
 
 ```sh
 npm test                    # 69 testes em Node + 11 em Python (bandeja)
-scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
+scripts/ui-test.sh          # 54 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 18 verificações da bandeja e do painel pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS
 scripts/embedded-test.sh    # extensão empacotada rodando o próprio coletor em GJS, sem Node

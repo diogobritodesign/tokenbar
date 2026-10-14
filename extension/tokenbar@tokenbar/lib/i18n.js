@@ -100,6 +100,7 @@ export const STRINGS = {
     'update.how': ['para atualizar: git pull && ./install.sh', 'to update: git pull && ./install.sh'],
     'update.auto': ['Um clique baixa e instala a versão nova.', 'One click downloads and installs the new version.'],
     'update.now': ['Atualizar agora', 'Update now'],
+    'update.doneNow': ['Pronto! Já está valendo, não precisa sair da sessão.', 'Done! It is already in effect, no need to log out.'],
     'update.running': ['Baixando e instalando…', 'Downloading and installing…'],
     'update.done': ['Pronto! Saia e entre de novo na sessão para o painel novo carregar.', 'Done! Log out and back in to load the new panel.'],
     'update.failed': ['Não deu para atualizar sozinho. No terminal, na pasta do TokenBar: git pull && ./install.sh', 'Could not update automatically. In a terminal, in the TokenBar folder: git pull && ./install.sh'],

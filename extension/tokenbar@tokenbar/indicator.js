@@ -1139,22 +1139,27 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._updateNow.reactive = false;
         this._updateNow.label = t('update.running');
         this._updateHow.text = t('update.running');
-        let ok = false;
+        // Saída 0: só coletor mudou, já vale. 10: o código do painel mudou,
+        // e o GNOME só o carrega numa sessão nova. Outra: falhou.
+        let status = 1;
         try {
             const proc = Gio.Subprocess.new(
                 // O PATH do terminal da instalação (gravado no tokenbar-collector) acha o node do nvm etc.
                 ['bash', '-c', 'eval "$(grep -m1 "^PATH=" "$HOME/.local/bin/tokenbar-collector" 2>/dev/null)"; export PATH; ' +
-                    'cd "$1" && git pull --ff-only && ./install.sh', 'tokenbar-update', source],
+                    'cd "$1" && git pull --ff-only && ./install.sh || exit 1; ' +
+                    '[ -n "$2" ] && git diff --quiet "$2" HEAD -- extension/ 2>/dev/null && exit 0; exit 10',
+                'tokenbar-update', source, this._extension.loadedCommit ?? ''],
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
             await proc.wait_async(this._cancellable);
-            ok = proc.get_successful();
+            status = proc.get_if_exited() ? proc.get_exit_status() : 1;
         } catch {
-            ok = false;
+            status = 1;
         }
         if (this._destroyed)
             return;
+        const ok = status === 0 || status === 10;
         this._updateStatus = ok ? 'done' : 'failed';
-        this._updateHow.text = ok ? t('update.done') : t('update.failed');
+        this._updateHow.text = status === 0 ? t('update.doneNow') : status === 10 ? t('update.done') : t('update.failed');
         this._updateNow.reactive = true;
         this._updateNow.label = t('update.now');
         this._updateNow.visible = !ok;

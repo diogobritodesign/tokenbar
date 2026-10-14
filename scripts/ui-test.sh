@@ -190,6 +190,15 @@ for _ in $(seq 40); do [[ -f "$WORK/installed" ]] && break; sleep 0.25; done; sl
 check "atualizar agora faz git pull e roda o install.sh" "$([[ -f "$WORK/installed" && -f "$WORK/clone/new" ]] && echo sim)" "sim"
 check "avisa para sair e entrar na sessão" "$(has_text 'Pronto! Saia e entre de novo na sessão para o painel novo carregar.')" "true"
 shot panel-update-done.png
+# Atualização que só mexe no coletor: não precisa sair da sessão.
+ev "(() => { const e = Main.extensionManager.lookup('$UUID').stateObj; Object.defineProperty(e, 'loadedCommit', {value: '$(git -C "$WORK/clone" rev-parse HEAD)', configurable: true}); $I._updateStatus = undefined; return 1; })()" >/dev/null
+echo y > "$WORK/other/collector-only"; git -C "$WORK/other" pull -q; git -C "$WORK/other" add collector-only
+git -C "$WORK/other" -c user.name=t -c user.email=t@t commit -qm three; git -C "$WORK/other" push -q origin HEAD 2>/dev/null
+rm -f "$WORK/installed"
+TOKENBAR_DEMO_SOURCE="$WORK/clone" node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
+click "Atualizar agora" >/dev/null
+for _ in $(seq 40); do [[ -f "$WORK/installed" ]] && break; sleep 0.25; done; sleep 0.5
+check "só o coletor mudou: não pede para sair da sessão" "$(has_text 'Já está valendo, não precisa sair da sessão')" "true"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
 click "Configurações" >/dev/null; sleep 0.8
 check "sobre mostra o autor" "$(has_text 'Criado por Diogo Brito')" "true"

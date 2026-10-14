@@ -4,14 +4,24 @@
 
 **English** · [Português](README.pt-BR.md)
 
-AI usage limits, always visible in the GNOME top bar, in the system tray on
-other Linux desktops, or in Waybar/Polybar.
+AI usage limits, always visible on your Linux desktop.
 
 TokenBar shows how much of your **Claude Code**, **Codex / ChatGPT**,
 **Antigravity** and **GitHub Copilot** quota is left, and opens a panel with
-the details when you click it. No Electron, no floating window, no overlay: a
-small Node collector writes a JSON file and a native GNOME Shell extension
-draws it.
+the details when you click it. No Electron, no floating window: a small
+collector writes a JSON file and a native piece of your desktop draws it.
+
+### Works on
+
+| Desktop | What you get |
+| --- | --- |
+| **GNOME** 48–50 | Native top-bar extension: a ring per account and the full panel. The most complete version. |
+| **KDE Plasma**, **Xfce**, **Cinnamon**, MATE, Budgie… | Tray icon with the percentage inside the ring; a click opens **the same panel, with the same design**. |
+| **Waybar** / **Polybar** (Sway, Hyprland, i3…) | A bar module with the percentages. |
+
+`./install.sh` detects your desktop and installs the right one. Any distro
+works (developed on Fedora; Ubuntu, Debian, Arch and openSUSE are covered by
+the installer).
 
 ![Top bar](docs/screenshots/top-bar.png)
 
@@ -43,13 +53,15 @@ draws it.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
 - **Update notice**: once a day it checks GitHub for a newer version and shows
   a banner (can be turned off) with an **Update now** button that runs
-  `git pull && ./install.sh` for you in the folder you installed from. An **About** card in the settings shows the
-  version, author, website and license.
+  `git pull && ./install.sh` for you in the folder you installed from, and
+  only asks you to log out when the panel code itself changed. An **About**
+  card in the settings shows the version, author, website and license.
 - **Refreshes right after you use** Claude Code or Codex (at most once a
   minute), and at a fixed interval otherwise.
 - Translucent panel with a light **background blur** (can be turned off).
-- **Beyond GNOME**: a tray icon for KDE, Xfce, Cinnamon, MATE and other
-  desktops, and output for Waybar and Polybar.
+- **Beyond GNOME**: on KDE Plasma, Xfce, Cinnamon, MATE and other desktops a
+  tray icon (percentage drawn inside the ring) opens **the same panel**, with
+  the same design. Output for Waybar and Polybar too.
 - **No Node.js needed** with the extension package: the collector also runs on
   GJS, inside the extension.
 
@@ -94,10 +106,12 @@ cd tokenbar
 ./install.sh
 ```
 
-Then **log out and back in**.
+On GNOME, then **log out and back in** (only this first time, see below). On
+other desktops the tray icon appears right away.
 
-To update later: `git pull && ./install.sh`, then log out and back in. On Wayland, GNOME Shell only loads a newly
-installed extension (or new extension code) when the session starts.
+To update later, click **Update now** in the panel's update banner, or run
+`git pull && ./install.sh`. You only need to log out again when the update
+changed the GNOME panel's own code; the panel tells you which case it is.
 
 ### Without Node.js (extension package)
 
@@ -117,20 +131,22 @@ the font, the cache and the history.
 
 On **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** and other desktops with a
 system tray, `./install.sh` installs a **tray icon** instead of the GNOME
-extension: a ring for the most critical account, its percentage as a label
-(where the desktop supports labels). **Clicking it opens the same panel as the
-GNOME extension** (same cards, rings, meters, font and colours, with settings
-inside); right-click keeps a plain menu. It starts at login. On GNOME you can add it too with
-`./install.sh --tray` (it needs the AppIndicator extension).
+extension: a ring for the most critical account with its percentage drawn
+inside. **Clicking it opens the same panel as the GNOME extension** (same
+cards, rings, meters, font and colours, with settings inside), next to the
+icon whether the bar is at the top or the bottom; a click anywhere else closes
+it. Right-click keeps a plain menu. It starts at login. On GNOME you can add it
+too with `./install.sh --tray` (it needs the AppIndicator extension).
 
 ![Panel opened from the tray icon](docs/screenshots/tray.png)
 
 It speaks the standard tray protocol (StatusNotifierItem) over D-Bus with
 PyGObject, and draws the panel with GTK 4 (if GTK 4 is missing, the click
-falls back to the menu). Python 3 with PyGObject is needed (`python3-gobject` on Fedora/openSUSE, `python3-gi` on Debian/Ubuntu,
-`python-gobject` on Arch). It has been tested against GNOME's tray host; it
-has not yet been tested on KDE, Xfce or Cinnamon themselves, so reports are
-welcome.
+falls back to the menu). Python 3 with PyGObject is needed (`python3-gobject`
+on Fedora/openSUSE, `python3-gi` on Debian/Ubuntu, `python-gobject` on Arch).
+On Wayland, `gtk4-layer-shell` lets the panel open in the corner next to the
+icon. Tested with real mouse clicks on KDE Plasma 6 (Wayland and X11), Xfce
+and Cinnamon.
 
 Options live in the `"bar"` block of `~/.config/tokenbar/config.json`:
 
@@ -262,16 +278,20 @@ journalctl -f /usr/bin/gnome-shell              # extension errors
 tokenbar-collector --once && cat ~/.cache/tokenbar/state.json
 ```
 
-**Do I really have to log out after updating?** For extension *code*, yes on
-Wayland: GNOME Shell cannot reload an extension's JavaScript in a running
-session. Data, settings and the collector never need it. To try changes
-without logging out, `scripts/preview.sh` opens a nested shell window.
+**Why do I have to log out after some updates?** On Wayland, GNOME Shell *is*
+your session: it loads each extension's JavaScript once and keeps it until you
+log out, and restarting it would close every open app (the old `Alt+F2` → `r`
+only existed on X11). This applies to every GNOME extension. Only changes to
+the panel's own code need it: the collector, data, settings and the tray icon
+on other desktops update immediately, and the **Update now** button tells you
+whether a logout is needed. To try panel changes without logging out,
+`scripts/preview.sh` opens a nested shell window.
 
 ## Development
 
 ```sh
 npm test                    # 69 Node tests + 11 Python tests (tray)
-scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
+scripts/ui-test.sh          # 54 checks against a real headless GNOME Shell
 scripts/tray-test.sh        # 18 checks of the tray icon and its panel over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity
 scripts/embedded-test.sh    # packaged extension running its own GJS collector, no Node

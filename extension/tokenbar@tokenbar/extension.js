@@ -18,7 +18,27 @@ const REOPEN_DELAY_MS = 150;
 // Se o coletor embutido sair sozinho, espera isto antes de subir de novo.
 const EMBEDDED_RESTART_S = 60;
 
+// Commit do código que este processo carregou, lido uma vez só: desligar e
+// religar a extensão reaproveita o mesmo código, então o valor continua certo.
+let loadedCommit;
+function readLoadedCommit(dir) {
+    if (loadedCommit === undefined) {
+        try {
+            const [, bytes] = dir.get_child('installed-commit').load_contents(null);
+            const text = new TextDecoder().decode(bytes).trim();
+            loadedCommit = /^[0-9a-f]{7,40}$/.test(text) ? text : null;
+        } catch {
+            loadedCommit = null;
+        }
+    }
+    return loadedCommit;
+}
+
 export default class TokenBarExtension extends Extension {
+    get loadedCommit() {
+        return readLoadedCommit(this.dir);
+    }
+
     enable() {
         this._settings = this.getSettings();
         this._recreateId = 0;

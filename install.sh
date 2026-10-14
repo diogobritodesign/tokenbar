@@ -88,6 +88,9 @@ if [[ $WANT_EXTENSION == 1 ]]; then
   mkdir -p "$EXT_DIR"
   cp -r "$SRC/extension/$UUID/." "$EXT_DIR/"
   glib-compile-schemas --strict "$EXT_DIR/schemas"
+  # Commit do código da extensão: o botão "Atualizar agora" compara com ele
+  # para só pedir logout quando o painel mudou de verdade.
+  printf '%s\n' "$COMMIT" > "$EXT_DIR/installed-commit"
 
   if gnome-extensions enable "$UUID" 2>/dev/null; then
     echo "extension enabled"
