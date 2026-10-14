@@ -1,4 +1,5 @@
 import { t } from './i18n.js';
+import { platform } from './platform/index.js';
 
 export const NETWORK_TIMEOUT_MS = 10_000;
 export const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
@@ -15,7 +16,7 @@ export class CollectError extends Error {
 }
 
 function retryAfterMs(response) {
-  const seconds = Number(response.headers.get('retry-after'));
+  const seconds = Number(response.header('retry-after'));
   const fromHeader = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0;
   return Math.min(Math.max(fromHeader, RATE_LIMIT_BACKOFF_MS), RATE_LIMIT_BACKOFF_MAX_MS);
 }
@@ -23,16 +24,10 @@ function retryAfterMs(response) {
 export async function fetchJson(url, headers) {
   let response;
   try {
-    response = await fetch(url, {
-      headers,
-      redirect: 'error',
-      signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS)
-    });
+    response = await platform.request({ url, headers, timeoutMs: NETWORK_TIMEOUT_MS });
   } catch (error) {
-    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
-      throw new CollectError('error', t('net.timeout'));
-    }
-    throw new CollectError('error', t('net.offline'));
+    if (platform.env().TOKENBAR_DEBUG) platform.log(`tokenbar: debug: ${url.replace(/\?.*$/, '')}: ${error?.message} ${String(error?.stack ?? '').split('\n')[0]}`);
+    throw new CollectError('error', t(error?.code === 'timeout' ? 'net.timeout' : 'net.offline'));
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -43,11 +38,11 @@ export async function fetchJson(url, headers) {
       retryAfterMs: retryAfterMs(response)
     });
   }
-  if (!response.ok) {
+  if (response.status < 200 || response.status > 299) {
     throw new CollectError('error', t('net.httpError', { status: response.status }));
   }
   try {
-    return await response.json();
+    return JSON.parse(response.text);
   } catch {
     throw new CollectError('error', t('net.badResponse'));
   }

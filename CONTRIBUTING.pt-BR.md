@@ -31,6 +31,14 @@ O `scripts/ui-test.sh` precisa do GNOME Shell 48 ou mais novo instalado. Ele
 roda numa sessão D-Bus própria, com pastas temporárias de configuração, cache
 e dados, então não toca na sua sessão nem nas suas configurações.
 
+## Dois ambientes
+
+O coletor roda no Node.js (serviço do systemd) e no GJS (embutido no pacote da
+extensão). Não use APIs só do Node ou só do GJS fora de
+`collector/src/platform/`: arquivos, rede, processos e observação de pastas
+passam pelo `platform`. Rode o `scripts/gjs-test.sh` depois de mexer em
+entrada e saída; ele inclui a conferência de paridade Node/GJS.
+
 ## Adicionando um provedor
 
 1. Crie `collector/src/providers/<nome>.js` exportando uma lista de objetos

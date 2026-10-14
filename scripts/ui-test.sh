@@ -202,6 +202,6 @@ if [[ $FAILS -eq 0 ]]; then echo "interface: todas as verificações passaram"; 
 exit $FAILS
 INNER
 
-env -u WAYLAND_DISPLAY -u DISPLAY WORK="$WORK" SRC="$SRC" SHOTS="$SHOTS" HOME="$WORK/home" \
+env -u WAYLAND_DISPLAY -u DISPLAY WORK="$WORK" SRC="$SRC" SHOTS="$SHOTS" HOME="$WORK/home" TOKENBAR_TEST_NO_COLLECTOR=1 \
   XDG_RUNTIME_DIR="$RUNTIME" XDG_DATA_HOME="$WORK/data" XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="$WORK/cache" \
   timeout 180 dbus-run-session -- bash "$WORK/inner.sh" 2>/dev/null

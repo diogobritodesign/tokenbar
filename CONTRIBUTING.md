@@ -32,6 +32,14 @@ scripts/preview.sh --demo  # opens a nested shell window with demo data
 session with temporary config/cache/data directories, so it does not touch
 your running session or your settings.
 
+## Two runtimes
+
+The collector runs on Node.js (systemd service) and on GJS (bundled in the
+extension package). Never use Node-only or GJS-only APIs outside
+`collector/src/platform/`: files, network, processes and folder watching go
+through `platform`. Run `scripts/gjs-test.sh` after touching I/O; it includes a
+Node/GJS parity check.
+
 ## Adding a provider
 
 1. Add `collector/src/providers/<name>.js` exporting an array of objects with

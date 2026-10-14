@@ -77,7 +77,6 @@ class TokenBarIndicator extends PanelMenu.Button {
 
         const cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'tokenbar']);
         this._stateFile = Gio.File.new_for_path(GLib.build_filenamev([cacheDir, 'state.json']));
-        this._collectorPath = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'tokenbar-collector']);
 
         this._panelBox = new St.BoxLayout({
             style_class: 'tokenbar-panel',
@@ -94,6 +93,9 @@ class TokenBarIndicator extends PanelMenu.Button {
         this.menu.connectObject('open-state-changed', (_menu, open) => this._onMenuToggled(open), this);
 
         // O coletor troca o arquivo com rename, então observa-se o diretório.
+        // Ele é criado aqui se ainda não existe (primeira execução), senão o
+        // monitor falha e o painel só veria os dados na próxima consulta.
+        GLib.mkdir_with_parents(cacheDir, 0o700);
         try {
             this._monitor = Gio.File.new_for_path(cacheDir)
                 .monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
@@ -460,7 +462,10 @@ class TokenBarIndicator extends PanelMenu.Button {
         button.reactive = false;
         let ok = false;
         try {
-            const proc = Gio.Subprocess.new([this._collectorPath, '--export-csv', target],
+            const argv = this._extension.collectorCommand(['--export-csv', target]);
+            if (!argv)
+                throw new Error('no collector');
+            const proc = Gio.Subprocess.new(argv,
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
             await proc.wait_async(this._cancellable);
             ok = proc.get_successful();
@@ -1099,7 +1104,10 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._refreshButton.reactive = false;
         let failed = false;
         try {
-            const proc = Gio.Subprocess.new([this._collectorPath, mode],
+            const argv = this._extension.collectorCommand([mode]);
+            if (!argv)
+                throw new Error('no collector');
+            const proc = Gio.Subprocess.new(argv,
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
             await proc.wait_async(this._cancellable);
             failed = !proc.get_successful();

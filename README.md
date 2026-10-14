@@ -88,6 +88,17 @@ Then **log out and back in**.
 To update later: `git pull && ./install.sh`, then log out and back in. On Wayland, GNOME Shell only loads a newly
 installed extension (or new extension code) when the session starts.
 
+### Without Node.js (extension package)
+
+`scripts/pack-extension.sh` builds `dist/tokenbar@tokenbar.shell-extension.zip`:
+the extension with a GJS port of the collector inside it. When the Node
+service is not installed, the extension starts that collector itself as a
+child process, so it needs neither Node.js nor systemd; this is the package
+meant for extensions.gnome.org. Install it locally with
+`gnome-extensions install dist/tokenbar@tokenbar.shell-extension.zip`, then log
+out and back in. (The Geist Mono font is not bundled in this mode; the
+interface falls back to another monospace font.)
+
 `./uninstall.sh` removes everything: the service, the extension, its settings,
 the font, the cache and the history.
 
@@ -159,7 +170,11 @@ menu if you only want the bar module).
                                                   └───────────────────────────┘
 ```
 
-- The **collector** (`collector/`) runs as `tokenbar-collector.service`. It
+- The **collector** (`collector/`) is the same code in two runtimes: Node.js
+  (the systemd service installed by `install.sh`) and GJS (bundled in the
+  extension package). Everything that touches the system goes through
+  `collector/src/platform/`, and a parity test checks that both write the same
+  result. As a service it runs as `tokenbar-collector.service`. It
   collects at the interval set in the settings and also right after you use
   Claude Code or Codex (it watches their conversation folders), at most once a
   minute. Each
@@ -238,6 +253,8 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 npm test                    # 69 Node tests + 10 Python tests (tray)
 scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
 scripts/tray-test.sh        # 15 checks of the tray icon over D-Bus, same isolated setup
+scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity
+scripts/embedded-test.sh    # packaged extension running its own GJS collector, no Node
 scripts/preview.sh --demo   # nested shell with demo data
 ```
 

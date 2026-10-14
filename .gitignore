@@ -6,3 +6,6 @@ gschemas.compiled
 collector/VERSION.json
 .vscode/
 .claude/
+
+# Pacote gerado pelo scripts/pack-extension.sh
+dist/

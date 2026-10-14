@@ -1,5 +1,5 @@
 import { readJson, writeJsonAtomic } from './files.js';
-import { HISTORY_FILE } from './paths.js';
+import { historyFile } from './paths.js';
 import { localDayKey } from './usage/claudeTranscripts.js';
 
 const HISTORY_VERSION = 1;
@@ -10,7 +10,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // { version, backfilledAt, days: { 'AAAA-MM-DD': { <id do provedor>: { tokens, costUsd } } } }
 export async function loadHistory() {
-  const history = await readJson(HISTORY_FILE);
+  const history = await readJson(historyFile());
   if (history?.version === HISTORY_VERSION && history.days && typeof history.days === 'object') return history;
   return { version: HISTORY_VERSION, backfilledAt: null, days: {} };
 }
@@ -26,7 +26,7 @@ export async function saveHistory(history, now = new Date()) {
   for (const key of Object.keys(history.days)) {
     if (key < oldest) delete history.days[key];
   }
-  await writeJsonAtomic(HISTORY_FILE, history);
+  await writeJsonAtomic(historyFile(), history);
 }
 
 function dayKeysBack(now, count) {

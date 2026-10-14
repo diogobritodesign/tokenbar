@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import fs from 'node:fs/promises';
-import http from 'node:http';
-import https from 'node:https';
-import path from 'node:path';
-import { HOME } from '../paths.js';
+import { home } from '../paths.js';
+import { platform } from '../platform/index.js';
+import { basename, join } from '../util/path.js';
 import { isDirectory } from '../files.js';
 import { CollectError, NETWORK_TIMEOUT_MS } from '../http.js';
 import { t } from '../i18n.js';
@@ -11,7 +8,7 @@ import { t } from '../i18n.js';
 // As cotas são lidas do language server que o próprio Antigravity mantém
 // rodando: ele escuta em 127.0.0.1 e aceita chamadas com o token CSRF que
 // recebeu na linha de comando. Nenhuma credencial do Google é lida ou renovada.
-const DATA_DIRS = ['antigravity', 'antigravity-ide', 'antigravity-cli'].map((name) => path.join(HOME, '.gemini', name));
+const dataDirs = () => ['antigravity', 'antigravity-ide', 'antigravity-cli'].map((name) => join(home(), '.gemini', name));
 const RPC_SERVICE = 'exa.language_server_pb.LanguageServerService';
 const RPC_TIMEOUT_MS = 3000;
 const STATUS_METADATA = { ideName: 'antigravity', extensionName: 'antigravity', ideVersion: 'unknown', locale: 'en' };
@@ -24,22 +21,16 @@ function flagValue(argv, flag) {
 }
 
 async function findLanguageServers() {
-  let entries;
-  try {
-    entries = await fs.readdir('/proc');
-  } catch {
-    return [];
-  }
   const servers = [];
-  for (const entry of entries) {
+  for (const entry of await platform.readdir('/proc')) {
     if (!/^\d+$/.test(entry)) continue;
     let argv;
     try {
-      argv = (await fs.readFile(`/proc/${entry}/cmdline`, 'utf8')).split('\0');
+      argv = (await platform.readText(`/proc/${entry}/cmdline`)).split('\0');
     } catch {
       continue;
     }
-    if (!path.basename(argv[0] || '').startsWith('language_server')) continue;
+    if (!basename(argv[0] || '').startsWith('language_server')) continue;
     if (!argv.some((arg) => arg.toLowerCase().includes('antigravity'))) continue;
     const csrfToken = flagValue(argv, '--csrf_token');
     if (csrfToken) servers.push({ pid: Number(entry), csrfToken });
@@ -47,10 +38,9 @@ async function findLanguageServers() {
   return servers;
 }
 
-function listeningSockets() {
-  return new Promise((resolve) => {
-    execFile('ss', ['-H', '-ltnp'], { timeout: RPC_TIMEOUT_MS }, (error, stdout) => resolve(error ? '' : stdout));
-  });
+async function listeningSockets() {
+  const result = await platform.exec(['ss', '-H', '-ltnp'], RPC_TIMEOUT_MS);
+  return result.ok ? result.stdout : '';
 }
 
 function portsOf(pid, sockets) {
@@ -63,43 +53,25 @@ function portsOf(pid, sockets) {
   return ports;
 }
 
-function callRpc({ scheme, port, csrfToken }, method, body, signal) {
-  const payload = Buffer.from(JSON.stringify(body));
-  return new Promise((resolve, reject) => {
-    const request = (scheme === 'https' ? https : http).request(
-      {
-        host: '127.0.0.1',
-        port,
-        method: 'POST',
-        path: `/${RPC_SERVICE}/${method}`,
-        headers: {
-          'content-type': 'application/json',
-          'content-length': payload.length,
-          'connect-protocol-version': '1',
-          'x-codeium-csrf-token': csrfToken
-        },
-        timeout: RPC_TIMEOUT_MS,
-        signal,
-        // Certificado autoassinado do language server; a conexão nunca sai do loopback.
-        rejectUnauthorized: false
-      },
-      (response) => {
-        const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
-        response.on('end', () => {
-          if (response.statusCode !== 200) return reject(new Error('rpc'));
-          try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-          } catch {
-            reject(new Error('rpc'));
-          }
-        });
-      }
-    );
-    request.on('timeout', () => request.destroy(new Error('rpc')));
-    request.on('error', reject);
-    request.end(payload);
+// Chamada ao language server local. Rejeita se não houver resposta 200 com JSON.
+async function callRpc({ scheme, port, csrfToken }, method, body, deadline) {
+  const timeoutMs = Math.min(RPC_TIMEOUT_MS, deadline - Date.now());
+  if (timeoutMs <= 0) throw Object.assign(new Error('timeout'), { code: 'timeout' });
+  const response = await platform.request({
+    method: 'POST',
+    url: `${scheme}://127.0.0.1:${port}/${RPC_SERVICE}/${method}`,
+    headers: {
+      'content-type': 'application/json',
+      'connect-protocol-version': '1',
+      'x-codeium-csrf-token': csrfToken
+    },
+    body: JSON.stringify(body),
+    timeoutMs,
+    // Certificado autoassinado do language server; a conexão nunca sai do loopback.
+    insecureLocal: true
   });
+  if (response.status !== 200) throw new Error('rpc');
+  return JSON.parse(response.text);
 }
 
 function groupName(displayName) {
@@ -146,7 +118,7 @@ async function fetchLimits() {
   if (servers.length === 0) {
     throw new CollectError('idle', t('antigravity.closed'));
   }
-  const signal = AbortSignal.timeout(NETWORK_TIMEOUT_MS);
+  const deadline = Date.now() + NETWORK_TIMEOUT_MS;
   const sockets = await listeningSockets();
 
   for (const server of servers) {
@@ -155,15 +127,15 @@ async function fetchLimits() {
         const endpoint = { scheme, port, csrfToken: server.csrfToken };
         let windows;
         try {
-          windows = mapWindows(await callRpc(endpoint, 'RetrieveUserQuotaSummary', { forceRefresh: true }, signal));
+          windows = mapWindows(await callRpc(endpoint, 'RetrieveUserQuotaSummary', { forceRefresh: true }, deadline));
         } catch {
-          if (signal.aborted) throw new CollectError('error', t('net.timeout'));
+          if (Date.now() >= deadline) throw new CollectError('error', t('net.timeout'));
           continue;
         }
         if (windows.length === 0) continue;
         let plan = null;
         try {
-          plan = planFrom(await callRpc(endpoint, 'GetUserStatus', { metadata: STATUS_METADATA }, signal));
+          plan = planFrom(await callRpc(endpoint, 'GetUserStatus', { metadata: STATUS_METADATA }, deadline));
         } catch {
           // O plano é só um rótulo; as cotas já vieram.
         }
@@ -175,7 +147,7 @@ async function fetchLimits() {
 }
 
 async function anyDataDir() {
-  for (const dir of DATA_DIRS) {
+  for (const dir of dataDirs()) {
     if (await isDirectory(dir)) return true;
   }
   return false;

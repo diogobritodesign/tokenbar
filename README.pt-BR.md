@@ -88,6 +88,17 @@ Depois **encerre a sessão e entre de novo**.
 Para atualizar depois: `git pull && ./install.sh`, e entre de novo na sessão. No Wayland, o GNOME Shell só
 carrega uma extensão nova (ou código novo de extensão) no início da sessão.
 
+### Sem Node.js (pacote da extensão)
+
+O `scripts/pack-extension.sh` gera o `dist/tokenbar@tokenbar.shell-extension.zip`:
+a extensão com uma versão do coletor em GJS dentro dela. Quando o serviço em
+Node não está instalado, a própria extensão roda esse coletor como processo
+filho, então não precisa de Node.js nem de systemd; é o pacote pensado para o
+extensions.gnome.org. Para instalar localmente:
+`gnome-extensions install dist/tokenbar@tokenbar.shell-extension.zip`, e
+depois entrar de novo na sessão. (A fonte Geist Mono não vem nesse modo; a
+interface usa outra fonte monoespaçada.)
+
 `./uninstall.sh` remove tudo: serviço, extensão, configurações, fonte, cache e
 histórico.
 
@@ -145,7 +156,11 @@ para fechar o ícone de bandeja pelo menu dele).
 
 ## Como funciona
 
-- O **coletor** (`collector/`) roda como `tokenbar-collector.service`. Ele
+- O **coletor** (`collector/`) é o mesmo código em dois ambientes: Node.js (o
+  serviço do systemd instalado pelo `install.sh`) e GJS (embutido no pacote da
+  extensão). Tudo o que toca o sistema passa por `collector/src/platform/`, e
+  um teste de paridade confere que os dois gravam o mesmo resultado. Como
+  serviço, roda como `tokenbar-collector.service`. Ele
   coleta no intervalo das configurações e também logo depois que você usa o
   Claude Code ou o Codex (observa as pastas de conversa), no máximo uma vez por
   minuto. Cada
@@ -221,6 +236,8 @@ shell aninhado numa janela.
 npm test                    # 69 testes em Node + 10 em Python (bandeja)
 scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 15 verificações da bandeja pelo D-Bus, no mesmo esquema isolado
+scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS
+scripts/embedded-test.sh    # extensão empacotada rodando o próprio coletor em GJS, sem Node
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração
 ```
 

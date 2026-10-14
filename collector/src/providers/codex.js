@@ -1,11 +1,11 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { HOME } from '../paths.js';
+import { home } from '../paths.js';
+import { platform } from '../platform/index.js';
+import { join } from '../util/path.js';
 import { isDirectory } from '../files.js';
 import { CollectError, fetchJson } from '../http.js';
 import { t } from '../i18n.js';
 
-const CODEX_DIR = path.join(HOME, '.codex');
+const codexDir = () => join(home(), '.codex');
 const USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 const hint = () => t('codex.hint');
 const SESSION_MAX_SECONDS = 6 * 60 * 60;
@@ -14,7 +14,7 @@ const SESSION_MAX_SECONDS = 6 * 60 * 60;
 async function readAuth() {
   let auth;
   try {
-    auth = JSON.parse(await fs.readFile(path.join(CODEX_DIR, 'auth.json'), 'utf8'));
+    auth = JSON.parse(await platform.readText(join(codexDir(), 'auth.json')));
   } catch {
     throw new CollectError('unauthorized', t('codex.noCredentials', { hint: hint() }));
   }
@@ -84,7 +84,7 @@ export const codexProviders = [
     id: 'codex',
     label: 'OAI',
     name: 'Codex / ChatGPT',
-    exists: () => isDirectory(CODEX_DIR),
+    exists: () => isDirectory(codexDir()),
     fetchLimits,
     // Só limites por enquanto; os tokens das sessões locais não são somados.
     usageToday: async () => null

@@ -1,7 +1,6 @@
-import { fileURLToPath } from 'node:url';
 import { readJson, writeJsonAtomic } from './files.js';
 import { fetchJson } from './http.js';
-import { UPDATE_CACHE_FILE } from './paths.js';
+import { updateCacheFile } from './paths.js';
 
 export const REPOSITORY = 'diogobritodesign/tokenbar';
 const REPOSITORY_URL = `https://github.com/${REPOSITORY}`;
@@ -12,8 +11,14 @@ const RETRY_MS = 6 * 60 * 60 * 1000;
 // O install.sh grava ao lado do coletor qual versão foi instalada:
 // { version, commit, installedAt }. Sem esse arquivo (rodando direto do
 // repositório), não há como comparar e a checagem é pulada.
+// Pasta do coletor instalado (a de cima de src/), a partir do endereço deste módulo.
+function defaultVersionFile() {
+  const here = decodeURIComponent(import.meta.url.replace(/^file:\/\//, ''));
+  return here.replace(/\/src\/update\.js$/, '/VERSION.json');
+}
+
 export async function installedVersion(file) {
-  file ??= fileURLToPath(new URL('../VERSION.json', import.meta.url));
+  file ??= defaultVersionFile();
   const data = await readJson(file);
   if (!data || typeof data !== 'object') return null;
   return {
@@ -41,7 +46,7 @@ export async function checkForUpdate({ enabled, force = false, now = Date.now(),
   const installed = await installedVersion(versionFile);
   if (!installed) return null;
 
-  const cached = await readJson(UPDATE_CACHE_FILE);
+  const cached = await readJson(updateCacheFile());
   let latest = cached?.latest ?? null;
   const due = force || !Number.isFinite(cached?.nextTryAt) || now >= cached.nextTryAt;
   if (due) {
@@ -52,9 +57,9 @@ export async function checkForUpdate({ enabled, force = false, now = Date.now(),
         date: String(body?.commit?.committer?.date || ''),
         summary: String(body?.commit?.message || '').split('\n')[0].slice(0, 120)
       };
-      await writeJsonAtomic(UPDATE_CACHE_FILE, { latest, nextTryAt: now + CHECK_EVERY_MS });
+      await writeJsonAtomic(updateCacheFile(), { latest, nextTryAt: now + CHECK_EVERY_MS });
     } catch {
-      await writeJsonAtomic(UPDATE_CACHE_FILE, { latest, nextTryAt: now + RETRY_MS }).catch(() => {});
+      await writeJsonAtomic(updateCacheFile(), { latest, nextTryAt: now + RETRY_MS }).catch(() => {});
     }
   }
 

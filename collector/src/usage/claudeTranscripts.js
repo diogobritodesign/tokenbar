@@ -1,11 +1,10 @@
-import { createReadStream } from 'node:fs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import readline from 'node:readline';
+import { platform } from '../platform/index.js';
 import { messageCostUsd } from '../pricing.js';
+import { basename, sep } from '../util/path.js';
 
 const CHUNK_BYTES = 1024 * 1024;
 const NEWLINE = 0x0a;
+const decoder = new TextDecoder();
 const MAX_SESSIONS = 6;
 
 export function localDayKey(date) {
@@ -70,49 +69,43 @@ async function readAppended(file, size, cached, dayStartMs) {
   const state = cached && cached.offset <= size ? cached : { offset: 0, messages: {} };
   if (state.offset === size) return state;
 
-  const handle = await fs.open(file, 'r');
-  try {
-    const buffer = Buffer.allocUnsafe(CHUNK_BYTES);
-    let position = state.offset;
-    let pending = Buffer.alloc(0);
-    while (position < size) {
-      const { bytesRead } = await handle.read(buffer, 0, Math.min(CHUNK_BYTES, size - position), position);
-      if (bytesRead === 0) break;
-      position += bytesRead;
-      let data = pending.length ? Buffer.concat([pending, buffer.subarray(0, bytesRead)]) : buffer.subarray(0, bytesRead);
-      let newline;
-      while ((newline = data.indexOf(NEWLINE)) !== -1) {
-        const parsed = parseUsageLine(data.toString('utf8', 0, newline));
-        if (parsed && parsed.at >= dayStartMs) {
-          // A mesma mensagem aparece em várias linhas (uma por bloco de conteúdo);
-          // a última traz a contagem final, então ela sobrescreve as anteriores.
-          state.messages[parsed.id] = parsed.tuple;
-          state.sessionId ??= parsed.entry.sessionId || null;
-          if (parsed.entry.cwd) state.cwd = parsed.entry.cwd;
-          state.lastAt = Math.max(state.lastAt || 0, parsed.at);
-        }
-        data = data.subarray(newline + 1);
-      }
-      pending = Buffer.from(data);
+  let position = state.offset;
+  let pending = new Uint8Array(0);
+  while (position < size) {
+    const chunk = await platform.readRange(file, position, Math.min(CHUNK_BYTES, size - position));
+    if (chunk.length === 0) break;
+    position += chunk.length;
+    let data = chunk;
+    if (pending.length) {
+      data = new Uint8Array(pending.length + chunk.length);
+      data.set(pending);
+      data.set(chunk, pending.length);
     }
-    // Uma linha ainda sem "\n" está sendo escrita: fica para a próxima passada.
-    state.offset = position - pending.length;
-  } finally {
-    await handle.close();
+    let start = 0;
+    let newline;
+    while ((newline = data.indexOf(NEWLINE, start)) !== -1) {
+      const parsed = parseUsageLine(decoder.decode(data.subarray(start, newline)));
+      if (parsed && parsed.at >= dayStartMs) {
+        // A mesma mensagem aparece em várias linhas (uma por bloco de conteúdo);
+        // a última traz a contagem final, então ela sobrescreve as anteriores.
+        state.messages[parsed.id] = parsed.tuple;
+        state.sessionId ??= parsed.entry.sessionId || null;
+        if (parsed.entry.cwd) state.cwd = parsed.entry.cwd;
+        state.lastAt = Math.max(state.lastAt || 0, parsed.at);
+      }
+      start = newline + 1;
+    }
+    pending = data.slice(start);
   }
+  // Uma linha ainda sem "\n" está sendo escrita: fica para a próxima passada.
+  state.offset = position - pending.length;
   return state;
 }
 
+// Em ordem alfabética: cada sistema de arquivos lista numa ordem diferente, e
+// o resultado (qual sessão aparece primeiro, por exemplo) não pode depender disso.
 async function listJsonlFiles(root) {
-  let entries;
-  try {
-    entries = await fs.readdir(root, { withFileTypes: true, recursive: true });
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
-    .map((entry) => path.join(entry.parentPath ?? entry.path, entry.name));
+  return (await platform.listFiles(root, '.jsonl')).sort();
 }
 
 // Uso de hoje (dia local) dos transcripts em `projectsDir`, deduplicado por id
@@ -121,18 +114,13 @@ async function listJsonlFiles(root) {
 // já foi lido.
 export async function claudeUsageToday(projectsDir, cache, now = new Date()) {
   const dayStartMs = startOfLocalDay(now);
-  const prefix = projectsDir + path.sep;
+  const prefix = projectsDir + sep;
   const seen = new Set();
   const merged = new Map();
 
   for (const file of await listJsonlFiles(projectsDir)) {
-    let stat;
-    try {
-      stat = await fs.stat(file);
-    } catch {
-      continue;
-    }
-    if (stat.mtimeMs < dayStartMs) continue;
+    const stat = await platform.stat(file);
+    if (!stat || stat.mtimeMs < dayStartMs) continue;
     seen.add(file);
     try {
       cache.files[file] = await readAppended(file, stat.size, cache.files[file], dayStartMs);
@@ -179,7 +167,7 @@ export async function claudeUsageToday(projectsDir, cache, now = new Date()) {
     const state = cache.files[file];
     const session = add(sessions, state.sessionId || file, { project: null, path: null, lastAt: 0 }, totals);
     if (state.cwd && !session.project) {
-      session.project = path.basename(state.cwd);
+      session.project = basename(state.cwd);
       session.path = state.cwd;
     }
     session.lastAt = Math.max(session.lastAt, state.lastAt || 0);
@@ -214,13 +202,13 @@ export async function claudeDailyHistory(projectsDir, sinceMs) {
   const byId = new Map();
   for (const file of await listJsonlFiles(projectsDir)) {
     try {
-      if ((await fs.stat(file)).mtimeMs < sinceMs) continue;
-      const lines = readline.createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-      for await (const line of lines) {
+      const stat = await platform.stat(file);
+      if (!stat || stat.mtimeMs < sinceMs) continue;
+      await platform.readLines(file, (line) => {
         const parsed = parseUsageLine(line);
         // Só o instante e a contagem: guardar a entrada inteira custaria centenas de MB.
         if (parsed && parsed.at >= sinceMs) byId.set(parsed.id, { at: parsed.at, tuple: parsed.tuple });
-      }
+      });
     } catch {
       // arquivo sumiu ou é ilegível: segue para o próximo
     }

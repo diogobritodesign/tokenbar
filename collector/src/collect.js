@@ -3,7 +3,7 @@ import { usdBrlRate } from './fx.js';
 import { BACKFILL_DAYS, loadHistory, recordDay, saveHistory, summarize } from './history.js';
 import { CollectError, RATE_LIMIT_BACKOFF_MS } from './http.js';
 import { LANGUAGES, setLanguage, t } from './i18n.js';
-import { CONFIG_FILE, STATE_FILE, USAGE_CACHE_FILE } from './paths.js';
+import { configFile, stateFile, usageCacheFile } from './paths.js';
 import { antigravityProviders } from './providers/antigravity.js';
 import { applyRecentPace } from './pace.js';
 import { claudeProviders } from './providers/claude.js';
@@ -44,7 +44,7 @@ function clampInt(value, min, max, fallback) {
 }
 
 export async function loadConfig() {
-  const raw = (await readJson(CONFIG_FILE)) || {};
+  const raw = (await readJson(configFile())) || {};
   const interval = Number(raw.intervalSec);
   return {
     intervalSec: Number.isFinite(interval)
@@ -69,7 +69,7 @@ export async function loadConfig() {
 
 async function loadUsageCache(now) {
   const day = localDayKey(now);
-  const cache = await readJson(USAGE_CACHE_FILE);
+  const cache = await readJson(usageCacheFile());
   if (cache?.version === USAGE_CACHE_VERSION && cache.day === day && cache.files && typeof cache.files === 'object') {
     return cache;
   }
@@ -160,7 +160,7 @@ async function collectProvider(provider, previous, usageCache, now) {
 export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
   setLanguage(config.language);
   const now = new Date();
-  const previousState = await readJson(STATE_FILE);
+  const previousState = await readJson(stateFile());
   const previousById = new Map(
     (Array.isArray(previousState?.providers) ? previousState.providers : []).map((entry) => [entry?.id, entry])
   );
@@ -187,7 +187,7 @@ export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
   }
   await saveHistory(history, now).catch(() => logError('history', t('log.historyWrite')));
 
-  await writeJsonAtomic(STATE_FILE, {
+  await writeJsonAtomic(stateFile(), {
     version: STATE_VERSION,
     updatedAt: isoSeconds(Date.now()),
     fx,
@@ -198,7 +198,7 @@ export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
     usage: summarize(history, now),
     providers
   });
-  await writeJsonAtomic(USAGE_CACHE_FILE, usageCache).catch(() => logError('cache', t('log.cacheWrite')));
+  await writeJsonAtomic(usageCacheFile(), usageCache).catch(() => logError('cache', t('log.cacheWrite')));
 }
 
 // Semeia o histórico com os últimos dias lendo os transcripts inteiros. Roda

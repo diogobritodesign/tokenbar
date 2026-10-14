@@ -11,9 +11,12 @@ import {formatAmount, formatReset, windowsOf} from './lib/format.js';
 import {getLanguage, resolveLanguage, setLanguage, t} from './lib/i18n.js';
 
 Gio._promisify(Gio.File.prototype, 'replace_contents_bytes_async', 'replace_contents_finish');
+Gio._promisify(Gio.Subprocess.prototype, 'wait_async');
 
 // Espera antes de reabrir o painel depois de recriar o indicador.
 const REOPEN_DELAY_MS = 150;
+// Se o coletor embutido sair sozinho, espera isto antes de subir de novo.
+const EMBEDDED_RESTART_S = 60;
 
 export default class TokenBarExtension extends Extension {
     enable() {
@@ -41,6 +44,7 @@ export default class TokenBarExtension extends Extension {
         this._applyLanguage(false);
         this._writeCollectorConfig();
         this._recreate();
+        this._startEmbeddedCollector();
     }
 
     // Idioma: 'auto' segue o sistema. Ao trocar com a extensão rodando, o
@@ -184,7 +188,64 @@ export default class TokenBarExtension extends Extension {
         }
     }
 
+    // Como rodar o coletor: o serviço em Node, se o install.sh o instalou;
+    // senão, o coletor em GJS que vem dentro da extensão (é o caso de quem
+    // instala pelo extensions.gnome.org, sem Node nem systemd).
+    collectorCommand(args) {
+        const service = GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'tokenbar-collector']);
+        if (GLib.file_test(service, GLib.FileTest.IS_EXECUTABLE))
+            return [service, ...args];
+        const gjs = GLib.find_program_in_path('gjs');
+        const script = this.dir.get_child('collector').get_child('gjs').get_child('tokenbar-collector.js');
+        if (gjs && script.query_exists(null))
+            return [gjs, '-m', script.get_path(), ...args];
+        return null;
+    }
+
+    get usesEmbeddedCollector() {
+        return this.collectorCommand([])?.[1] === '-m';
+    }
+
+    // Sem o serviço do systemd, o coletor embutido roda como processo filho
+    // enquanto a extensão estiver ligada.
+    _startEmbeddedCollector() {
+        this._embeddedRestartId = 0;
+        if (!this.usesEmbeddedCollector || GLib.getenv('TOKENBAR_TEST_NO_COLLECTOR'))
+            return;
+        try {
+            // A entrada padrão fica ligada a nós: se o gnome-shell sair sem
+            // desligar a extensão (queda, por exemplo), ela fecha e o coletor
+            // encerra sozinho em vez de ficar órfão.
+            const launcher = new Gio.SubprocessLauncher({flags: Gio.SubprocessFlags.STDIN_PIPE | Gio.SubprocessFlags.STDOUT_SILENCE});
+            launcher.setenv('TOKENBAR_EXIT_WITH_PARENT', '1', true);
+            this._embedded = launcher.spawnv(this.collectorCommand([]));
+        } catch (error) {
+            console.error(`tokenbar: could not start the collector: ${error.message}`);
+            return;
+        }
+        const process = this._embedded;
+        process.wait_async(null).then(() => {
+            if (this._embedded !== process)
+                return;
+            this._embedded = null;
+            this._embeddedRestartId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, EMBEDDED_RESTART_S, () => {
+                this._startEmbeddedCollector();
+                return GLib.SOURCE_REMOVE;
+            });
+        }).catch(() => {});
+    }
+
+    _stopEmbeddedCollector() {
+        if (this._embeddedRestartId)
+            GLib.source_remove(this._embeddedRestartId);
+        this._embeddedRestartId = 0;
+        const process = this._embedded;
+        this._embedded = null;
+        process?.send_signal(15);
+    }
+
     disable() {
+        this._stopEmbeddedCollector();
         if (this._recreateId) {
             GLib.source_remove(this._recreateId);
             this._recreateId = 0;

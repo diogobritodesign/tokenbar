@@ -1,6 +1,6 @@
 import { readJson, writeJsonAtomic } from './files.js';
 import { fetchJson } from './http.js';
-import { FX_CACHE_FILE } from './paths.js';
+import { fxCacheFile } from './paths.js';
 
 const REFRESH_MS = 12 * 60 * 60 * 1000;
 const RETRY_MS = 30 * 60 * 1000;
@@ -14,7 +14,7 @@ const SOURCES = [
 // Cotação do dólar em reais, renovada no máximo duas vezes por dia. Sem rede,
 // fica a última conhecida; sem nenhuma, devolve null e o painel mostra em US$.
 export async function usdBrlRate(now = Date.now()) {
-  const cached = await readJson(FX_CACHE_FILE);
+  const cached = await readJson(fxCacheFile());
   const known = Number.isFinite(cached?.usdBrl) ? { usdBrl: cached.usdBrl, asOf: cached.asOf } : null;
   if (Number.isFinite(cached?.nextTryAt) && now < cached.nextTryAt) return known;
 
@@ -23,13 +23,13 @@ export async function usdBrlRate(now = Date.now()) {
       const rate = pick(await fetchJson(url, { accept: 'application/json' }));
       if (Number.isFinite(rate) && rate > 0) {
         const fresh = { usdBrl: rate, asOf: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z') };
-        await writeJsonAtomic(FX_CACHE_FILE, { ...fresh, nextTryAt: now + REFRESH_MS });
+        await writeJsonAtomic(fxCacheFile(), { ...fresh, nextTryAt: now + REFRESH_MS });
         return fresh;
       }
     } catch {
       // tenta a próxima fonte
     }
   }
-  await writeJsonAtomic(FX_CACHE_FILE, { ...(known || {}), nextTryAt: now + RETRY_MS }).catch(() => {});
+  await writeJsonAtomic(fxCacheFile(), { ...(known || {}), nextTryAt: now + RETRY_MS }).catch(() => {});
   return known;
 }

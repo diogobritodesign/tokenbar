@@ -1,6 +1,6 @@
 import { readJson, writeJsonAtomic } from './files.js';
 import { fetchJson } from './http.js';
-import { STATUS_CACHE_FILE } from './paths.js';
+import { statusCacheFile } from './paths.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
 
@@ -9,7 +9,7 @@ const PAGES = [{ id: 'claude', name: 'Claude', url: 'https://status.claude.com/a
 
 // indicator: none | minor | major | critical (ou null se a página não respondeu).
 export async function serviceStatus(now = Date.now()) {
-  const cached = await readJson(STATUS_CACHE_FILE);
+  const cached = await readJson(statusCacheFile());
   if (Array.isArray(cached?.services) && Number.isFinite(cached.nextTryAt) && now < cached.nextTryAt) {
     return cached.services;
   }
@@ -28,6 +28,6 @@ export async function serviceStatus(now = Date.now()) {
       }
     })
   );
-  await writeJsonAtomic(STATUS_CACHE_FILE, { services, nextTryAt: now + REFRESH_MS }).catch(() => {});
+  await writeJsonAtomic(statusCacheFile(), { services, nextTryAt: now + REFRESH_MS }).catch(() => {});
   return services;
 }

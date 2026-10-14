@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { HOME } from '../paths.js';
+import { home } from '../paths.js';
+import { platform } from '../platform/index.js';
+import { join } from '../util/path.js';
 import { isDirectory } from '../files.js';
 import { CollectError, fetchJson } from '../http.js';
 import { t } from '../i18n.js';
@@ -12,23 +12,19 @@ const hint = () => t('claude.hint');
 // A conta padrão fica em ~/.claude. Contas extras são pastas ~/.claude-<nome>
 // (as usadas com CLAUDE_CONFIG_DIR); cada uma vira CLD2, CLD3... em ordem
 // alfabética, para o id não mudar entre execuções.
-export async function discoverClaudeAccounts(home = HOME) {
-  let names = [];
-  try {
-    names = (await fs.readdir(home)).filter((name) => name.startsWith('.claude-')).sort();
-  } catch {
-    // sem acesso à pasta pessoal: fica só a conta padrão
-  }
+export async function discoverClaudeAccounts(homeDir = home()) {
+  // Sem acesso à pasta pessoal, a lista vem vazia e fica só a conta padrão.
+  const names = (await platform.readdir(homeDir)).filter((name) => name.startsWith('.claude-')).sort();
   const extras = [];
   for (const name of names) {
-    const dir = path.join(home, name);
+    const dir = join(homeDir, name);
     if (!(await isDirectory(dir))) continue;
     // Só conta como conta se tiver login ou conversas; ~/.claude-backup e afins ficam de fora.
-    const hasLogin = await fs.access(path.join(dir, '.credentials.json')).then(() => true, () => false);
-    if (hasLogin || (await isDirectory(path.join(dir, 'projects')))) extras.push({ dir, suffix: name.slice('.claude-'.length) });
+    const hasLogin = await platform.exists(join(dir, '.credentials.json'));
+    if (hasLogin || (await isDirectory(join(dir, 'projects')))) extras.push({ dir, suffix: name.slice('.claude-'.length) });
   }
   return [
-    { id: 'claude-main', label: 'CLD', name: extras.length > 0 ? t('name.claudeMain') : 'Claude', dir: path.join(home, '.claude') },
+    { id: 'claude-main', label: 'CLD', name: extras.length > 0 ? t('name.claudeMain') : 'Claude', dir: join(homeDir, '.claude') },
     ...extras.map((extra, index) => ({
       id: `claude-${index + 2}`,
       label: `CLD${index + 2}`,
@@ -57,7 +53,7 @@ export function planLabel(oauth) {
 async function readOauth(dir) {
   let parsed;
   try {
-    parsed = JSON.parse(await fs.readFile(path.join(dir, '.credentials.json'), 'utf8'));
+    parsed = JSON.parse(await platform.readText(join(dir, '.credentials.json')));
   } catch {
     throw new CollectError('unauthorized', t('claude.noCredentials', { hint: hint() }));
   }
@@ -119,8 +115,8 @@ function claudeProvider(account) {
       return { plan, windows: mapWindows(usage) };
     },
 
-    usageToday: (usageCache, now) => claudeUsageToday(path.join(account.dir, 'projects'), usageCache, now),
-    dailyHistory: (sinceMs) => claudeDailyHistory(path.join(account.dir, 'projects'), sinceMs)
+    usageToday: (usageCache, now) => claudeUsageToday(join(account.dir, 'projects'), usageCache, now),
+    dailyHistory: (sinceMs) => claudeDailyHistory(join(account.dir, 'projects'), sinceMs)
   };
 }
 

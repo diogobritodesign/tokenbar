@@ -1,5 +1,5 @@
 import { readJson, writeJsonAtomic } from './files.js';
-import { SAMPLES_FILE } from './paths.js';
+import { samplesFile } from './paths.js';
 
 const KEEP_MS = 26 * 60 * 60 * 1000;
 const MAX_LOOKBACK_MS = 24 * 60 * 60 * 1000;
@@ -16,7 +16,7 @@ const SAME_WINDOW_MS = 5 * 60 * 1000;
 // quando, nesse ritmo, o reset chega antes. Sem amostras suficientes o campo
 // não é criado e a interface cai na média da janela inteira.
 export async function applyRecentPace(providers, now = Date.now()) {
-  const stored = (await readJson(SAMPLES_FILE)) || {};
+  const stored = (await readJson(samplesFile())) || {};
   const samples = {};
 
   for (const provider of providers) {
@@ -50,5 +50,5 @@ export async function applyRecentPace(providers, now = Date.now()) {
       window.pace = { basis: 'recent', exhaustsAt };
     }
   }
-  await writeJsonAtomic(SAMPLES_FILE, samples).catch(() => {});
+  await writeJsonAtomic(samplesFile(), samples).catch(() => {});
 }

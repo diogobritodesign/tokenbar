@@ -1,6 +1,8 @@
 // Textos que o coletor grava no state.json e no journal, em português e inglês.
 // O idioma vem do config.json (a extensão escreve lá o que está em uso); sem
 // isso, das variáveis de ambiente do sistema.
+import { platform } from './platform/index.js';
+
 export const MESSAGES = {
   'label.week': ['Semana', 'Week'],
   'label.code': ['Código', 'Code'],
@@ -50,7 +52,7 @@ export function languageFromLocale(locale) {
   return String(locale || '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
 }
 
-export function systemLanguage(env = process.env) {
+export function systemLanguage(env = platform.env()) {
   return languageFromLocale(env.LC_ALL || env.LC_MESSAGES || env.LANG);
 }
 

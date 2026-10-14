@@ -1,11 +1,11 @@
-import { execFile } from 'node:child_process';
-import path from 'node:path';
-import { HOME } from '../paths.js';
+import { home } from '../paths.js';
+import { platform } from '../platform/index.js';
+import { join } from '../util/path.js';
 import { isDirectory } from '../files.js';
 import { CollectError, NETWORK_TIMEOUT_MS } from '../http.js';
 import { t } from '../i18n.js';
 
-const COPILOT_DIR = path.join(HOME, '.copilot');
+const copilotDir = () => join(home(), '.copilot');
 
 // A cota é lida pela CLI oficial do GitHub (`gh api`), que usa o login que ela
 // mesma guarda no chaveiro. O coletor nunca vê o token.
@@ -15,21 +15,18 @@ const QUOTAS = [
   ['premium_interactions', () => 'Premium']
 ];
 
-function runGh(args) {
-  return new Promise((resolve, reject) => {
-    execFile('gh', args, { timeout: NETWORK_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-      if (!error) return resolve(stdout);
-      if (error.code === 'ENOENT') return reject(new CollectError('error', t('copilot.noGh')));
-      if (error.killed) return reject(new CollectError('error', t('net.timeout')));
-      const text = String(stderr || '');
-      if (/HTTP 401|HTTP 403|not logged|authentication|gh auth login/i.test(text)) {
-        return reject(new CollectError('unauthorized', t('copilot.noLogin', { hint: t('copilot.hint') })));
-      }
-      if (/HTTP 404/.test(text)) return reject(new CollectError('error', t('copilot.noCopilot')));
-      if (/HTTP 429/.test(text)) return reject(new CollectError('rate_limited', t('net.rateLimited')));
-      reject(new CollectError('error', t('copilot.ghFailed')));
-    });
-  });
+async function runGh(args) {
+  const result = await platform.exec(['gh', ...args], NETWORK_TIMEOUT_MS);
+  if (result.ok) return result.stdout;
+  if (result.notFound) throw new CollectError('error', t('copilot.noGh'));
+  if (result.timedOut) throw new CollectError('error', t('net.timeout'));
+  const text = result.stderr;
+  if (/HTTP 401|HTTP 403|not logged|authentication|gh auth login/i.test(text)) {
+    throw new CollectError('unauthorized', t('copilot.noLogin', { hint: t('copilot.hint') }));
+  }
+  if (/HTTP 404/.test(text)) throw new CollectError('error', t('copilot.noCopilot'));
+  if (/HTTP 429/.test(text)) throw new CollectError('rate_limited', t('net.rateLimited'));
+  throw new CollectError('error', t('copilot.ghFailed'));
 }
 
 function resetIso(data) {
@@ -80,7 +77,7 @@ export const copilotProviders = [
     id: 'copilot',
     label: 'GH',
     name: 'GitHub Copilot',
-    exists: () => isDirectory(COPILOT_DIR),
+    exists: () => isDirectory(copilotDir()),
     // Cota mensal: uma consulta a cada 10 min basta e poupa o limite da API do GitHub.
     minIntervalMs: 10 * 60 * 1000,
     fetchLimits,

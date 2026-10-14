@@ -1,12 +1,12 @@
-import { watch } from 'node:fs';
-import path from 'node:path';
-import { HOME } from './paths.js';
+import { home } from './paths.js';
+import { platform } from './platform/index.js';
 import { discoverClaudeAccounts } from './providers/claude.js';
+import { join } from './util/path.js';
 
 // Pastas onde as ferramentas gravam as conversas enquanto você usa.
-export async function activityPaths(home = HOME) {
-  const accounts = await discoverClaudeAccounts(home);
-  return [...accounts.map((account) => path.join(account.dir, 'projects')), path.join(home, '.codex', 'sessions')];
+export async function activityPaths(homeDir = home()) {
+  const accounts = await discoverClaudeAccounts(homeDir);
+  return [...accounts.map((account) => join(account.dir, 'projects')), join(homeDir, '.codex', 'sessions')];
 }
 
 // Agenda a próxima coleta: no intervalo normal quando nada acontece, ou logo
@@ -60,17 +60,7 @@ export class CollectionScheduler {
 // Observa as pastas de conversa e avisa o agendador a cada arquivo .jsonl
 // alterado. Pasta que não existe é ignorada; o resto continua valendo.
 export function watchActivity(paths, onActivity) {
-  const watchers = [];
-  for (const dir of paths) {
-    try {
-      const watcher = watch(dir, { recursive: true, persistent: false }, (_event, file) => {
-        if (!file || String(file).endsWith('.jsonl')) onActivity();
-      });
-      watcher.on('error', () => watcher.close());
-      watchers.push(watcher);
-    } catch {
-      // pasta ausente ou sem permissão
-    }
-  }
-  return () => watchers.forEach((watcher) => watcher.close());
+  return platform.watchTree(paths, (file) => {
+    if (!file || file.endsWith('.jsonl')) onActivity();
+  });
 }

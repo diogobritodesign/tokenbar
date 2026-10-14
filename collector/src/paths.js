@@ -1,19 +1,24 @@
-import os from 'node:os';
-import path from 'node:path';
+import { platform } from './platform/index.js';
+import { join } from './util/path.js';
 
-const home = os.homedir();
+// Calculados na hora (e não na importação) para valerem as variáveis de
+// ambiente do momento, inclusive nos testes.
+export const home = () => platform.home();
 
-export const HOME = home;
-export const CACHE_DIR = path.join(process.env.XDG_CACHE_HOME || path.join(home, '.cache'), 'tokenbar');
-export const STATE_DIR = path.join(process.env.XDG_STATE_HOME || path.join(home, '.local', 'state'), 'tokenbar');
-export const CONFIG_DIR = path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'tokenbar');
+function appDir(variable, fallback) {
+  return join(platform.env()[variable] || join(home(), ...fallback), 'tokenbar');
+}
 
-export const STATE_FILE = path.join(CACHE_DIR, 'state.json');
-export const USAGE_CACHE_FILE = path.join(CACHE_DIR, 'usage-cache.json');
-export const FX_CACHE_FILE = path.join(CACHE_DIR, 'fx.json');
-export const SAMPLES_FILE = path.join(CACHE_DIR, 'samples.json');
-export const UPDATE_CACHE_FILE = path.join(CACHE_DIR, 'update.json');
-export const STATUS_CACHE_FILE = path.join(CACHE_DIR, 'status.json');
+export const cacheDir = () => appDir('XDG_CACHE_HOME', ['.cache']);
+export const stateDir = () => appDir('XDG_STATE_HOME', ['.local', 'state']);
+export const configDir = () => appDir('XDG_CONFIG_HOME', ['.config']);
+
+export const stateFile = () => join(cacheDir(), 'state.json');
+export const usageCacheFile = () => join(cacheDir(), 'usage-cache.json');
+export const fxCacheFile = () => join(cacheDir(), 'fx.json');
+export const samplesFile = () => join(cacheDir(), 'samples.json');
+export const updateCacheFile = () => join(cacheDir(), 'update.json');
+export const statusCacheFile = () => join(cacheDir(), 'status.json');
 // Histórico não é cache: não dá para reconstruir depois que os transcripts antigos somem.
-export const HISTORY_FILE = path.join(STATE_DIR, 'history.json');
-export const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+export const historyFile = () => join(stateDir(), 'history.json');
+export const configFile = () => join(configDir(), 'config.json');

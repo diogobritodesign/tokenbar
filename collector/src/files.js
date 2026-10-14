@@ -1,9 +1,9 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { platform } from './platform/index.js';
+import { dirname } from './util/path.js';
 
 export async function readJson(file, fallback = null) {
   try {
-    return JSON.parse(await fs.readFile(file, 'utf8'));
+    return JSON.parse(await platform.readText(file));
   } catch {
     return fallback;
   }
@@ -11,21 +11,17 @@ export async function readJson(file, fallback = null) {
 
 // Escreve em .tmp e renomeia, para que quem lê nunca veja um arquivo pela metade.
 export async function writeJsonAtomic(file, data) {
-  await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  const tmp = `${file}.${process.pid}.tmp`;
+  await platform.mkdirp(dirname(file), 0o700);
+  const tmp = `${file}.${platform.pid()}.tmp`;
   try {
-    await fs.writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-    await fs.rename(tmp, file);
+    await platform.writeText(tmp, `${JSON.stringify(data, null, 2)}\n`, 0o600);
+    await platform.rename(tmp, file);
   } catch (error) {
-    await fs.rm(tmp, { force: true });
+    await platform.remove(tmp).catch(() => {});
     throw error;
   }
 }
 
 export async function isDirectory(dir) {
-  try {
-    return (await fs.stat(dir)).isDirectory();
-  } catch {
-    return false;
-  }
+  return (await platform.stat(dir))?.isDirectory === true;
 }
