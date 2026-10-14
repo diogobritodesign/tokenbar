@@ -4,6 +4,8 @@
 
 **English** · [Português](README.pt-BR.md)
 
+![TokenBar: AI usage limits on GNOME, KDE Plasma, Xfce, Cinnamon, Waybar and Polybar](docs/screenshots/hero.png)
+
 AI usage limits, always visible on your Linux desktop.
 
 TokenBar shows how much of your **Claude Code**, **Codex / ChatGPT**,

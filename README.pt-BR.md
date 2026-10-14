@@ -4,6 +4,8 @@
 
 [English](README.md) · **Português**
 
+![TokenBar: limites de uso de IA no GNOME, KDE Plasma, Xfce, Cinnamon, Waybar e Polybar](docs/screenshots/hero-pt.png)
+
 Limites de uso de IA, sempre visíveis no seu desktop Linux.
 
 O TokenBar mostra quanto resta da sua cota do **Claude Code**, **Codex /
