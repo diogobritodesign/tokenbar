@@ -10,6 +10,7 @@ import { claudeProviders } from './providers/claude.js';
 import { codexProviders } from './providers/codex.js';
 import { copilotProviders } from './providers/copilot.js';
 import { serviceStatus } from './status.js';
+import { checkForUpdate } from './update.js';
 import { localDayKey } from './usage/claudeTranscripts.js';
 
 const STATE_VERSION = 1;
@@ -46,7 +47,9 @@ export async function loadConfig() {
       : DEFAULT_INTERVAL_SEC,
     disabledProviders: Array.isArray(raw.disabledProviders) ? raw.disabledProviders.map(String) : [],
     // null = seguir o idioma do sistema
-    language: LANGUAGES.includes(raw.language) ? raw.language : null
+    language: LANGUAGES.includes(raw.language) ? raw.language : null,
+    // Checagem diária de versão nova no GitHub; ligada por padrão.
+    updateCheck: raw.updateCheck !== false
   };
 }
 
@@ -140,7 +143,7 @@ async function collectProvider(provider, previous, usageCache, now) {
   return result;
 }
 
-export async function collectOnce(config) {
+export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
   setLanguage(config.language);
   const now = new Date();
   const previousState = await readJson(STATE_FILE);
@@ -152,10 +155,11 @@ export async function collectOnce(config) {
   const present = await listProviders();
   const active = present.filter((provider) => !config.disabledProviders.includes(provider.id));
 
-  const [providers, fx, services] = await Promise.all([
+  const [providers, fx, services, update] = await Promise.all([
     Promise.all(active.map((provider) => collectProvider(provider, previousById.get(provider.id), usageCache, now))),
     usdBrlRate(now.getTime()).catch(() => null),
-    serviceStatus(now.getTime()).catch(() => [])
+    serviceStatus(now.getTime()).catch(() => []),
+    checkForUpdate({ enabled: config.updateCheck, force: forceUpdateCheck, now: now.getTime() }).catch(() => null)
   ]);
 
   await applyRecentPace(providers, now.getTime());
@@ -174,6 +178,7 @@ export async function collectOnce(config) {
     updatedAt: isoSeconds(Date.now()),
     fx,
     services,
+    update,
     // Todas as contas encontradas, inclusive as desligadas, para a tela de configurações.
     accounts: present.map(({ id, label, name }) => ({ id, label, name, enabled: !config.disabledProviders.includes(id) })),
     usage: summarize(history, now),

@@ -71,6 +71,9 @@ test('grava o estado com as contas encontradas, limites, uso e custo', async () 
   assert.equal(main.costPartial, false);
   assert.equal(main.sessionsToday[0].project, 'projeto-a');
   assert.equal(state.usage.series.at(-1).tokens, 3000);
+  // Rodando do repositório não há VERSION.json: sem checagem e sem consulta ao GitHub.
+  assert.equal(state.update, null);
+  assert.ok(!calls.some((c) => c.url.includes('api.github.com')));
 });
 
 test('token expirado não gera requisição e vira "unauthorized" com a dica', async () => {

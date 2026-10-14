@@ -166,6 +166,22 @@ click "Voltar" >/dev/null; sleep 0.5
 $GS set $SCHEMA expanded-providers "['claude-main']"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1
 
+echo "Atualizações e sobre"
+node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
+ev "$I.menu.open(); 1" >/dev/null; sleep 1
+check "faixa de atualização aparece com o resumo" "$(has_text 'e4f5a6b · Suporte ao Gemini CLI')" "true"
+check "notificação de versão nova, uma vez" "$($GS get $SCHEMA update-notified)" "'e4f5a6b'"
+shot panel-update.png
+click "Configurações" >/dev/null; sleep 0.8
+check "sobre mostra o autor" "$(has_text 'Criado por Diogo Brito')" "true"
+check "sobre tem os links do site e do GitHub" "$(ev "(() => { $FIND return !!byLabel('Site do autor') && !!byLabel('Código no GitHub'); })()")" "true"
+check "sobre mostra que há versão nova" "$(has_text 'Atualização disponível: e4f5a6b')" "true"
+ev "(() => { $FIND const s = find($I.menu.box, a => a instanceof imports.gi.St.Button && a.style_class === 'tokenbar-switch' && a.get_parent()?.get_children?.()[0]?.text === 'Avisar sobre atualizações'); return s ? press(s) : 'sem'; })()" >/dev/null; sleep 0.6
+check "interruptor de atualizações vai para o config.json" "$(grep -c '"updateCheck": false' "$XDG_CONFIG_HOME/tokenbar/config.json")" "1"
+shot settings-about.png
+click "Voltar" >/dev/null; sleep 0.5
+node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
+
 echo "Robustez"
 echo '{ quebrado' > "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
 check "JSON inválido não quebra (barra mostra traço)" "$(ev "$I._state === null && $I._panelBox.get_n_children() === 2")" "true"

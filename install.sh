@@ -29,6 +29,11 @@ mkdir -p "$APP_DIR" "$HOME/.local/bin" "$UNIT_DIR"
 install -d -m 700 "$HOME/.cache/tokenbar"
 rm -rf "$APP_DIR/collector"
 cp -r "$SRC/collector" "$APP_DIR/collector"
+# Qual versão foi instalada, para o aviso de atualização comparar com o GitHub.
+COMMIT="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
+VERSION="$("$NODE" -p "require('$SRC/package.json').version")"
+printf '{"version":"%s","commit":"%s","installedAt":"%s"}\n' "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  > "$APP_DIR/collector/VERSION.json"
 
 # O caminho absoluto do node e o PATH deste terminal ficam gravados aqui porque
 # o PATH do systemd --user costuma ser mais curto (nvm, fnm, ~/.local/bin), e

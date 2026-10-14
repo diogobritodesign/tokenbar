@@ -14,6 +14,15 @@ const RING_TRACK_ALPHA = 0.3;
 const SWITCH_TRAVEL = 14;
 const LEVELS = ['ok', 'warn', 'crit', 'off'];
 
+// Abre um endereço da web no navegador padrão.
+export function openUri(uri) {
+    try {
+        Gio.AppInfo.launch_default_for_uri(uri, null);
+    } catch (error) {
+        console.error(`tokenbar: could not open ${uri}: ${error.message}`);
+    }
+}
+
 export function openFolder(path) {
     try {
         const editor = GLib.find_program_in_path('code');

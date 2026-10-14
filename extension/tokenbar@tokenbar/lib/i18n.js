@@ -95,6 +95,23 @@ export const STRINGS = {
     'notify.freed': ['{name} liberado', '{name} is available again'],
     'notify.freedBody': ['A janela resetou; uso em {pct}%.', 'The window reset; usage is at {pct}%.'],
 
+    // atualizações e sobre
+    'update.title': ['Atualização disponível', 'Update available'],
+    'update.how': ['para atualizar: git pull && ./install.sh', 'to update: git pull && ./install.sh'],
+    'update.view': ['Ver novidades', 'See what changed'],
+    'notify.update': ['TokenBar: atualização disponível', 'TokenBar: update available'],
+    'set.about': ['Sobre', 'About'],
+    'about.version': ['Versão {version}', 'Version {version}'],
+    'about.createdBy': ['Criado por {name}', 'Created by {name}'],
+    'about.site': ['Site do autor', "Author's website"],
+    'about.code': ['Código no GitHub', 'Code on GitHub'],
+    'about.license': ['Licença GPL-3.0', 'GPL-3.0 license'],
+    'set.updateCheck': ['Avisar sobre atualizações', 'Notify about updates'],
+    'set.updateCheckNow': ['Procurar agora', 'Check now'],
+    'set.updateChecking': ['Procurando…', 'Checking…'],
+    'set.upToDate': ['Você está na versão mais recente.', 'You are on the latest version.'],
+    'set.updateUnknown': ['Instale pelo install.sh para receber avisos de versão nova.', 'Install with install.sh to get notified of new versions.'],
+
     // janela do app Extensões
     'prefs.title': ['As configurações ficam no painel', 'Settings live in the panel'],
     'prefs.body': [

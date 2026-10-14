@@ -2,5 +2,7 @@ node_modules/
 # Gerado pelo install.sh (glib-compile-schemas) em cada máquina.
 gschemas.compiled
 *.tmp
+# Gravado pelo install.sh na cópia instalada.
+collector/VERSION.json
 .vscode/
 .claude/

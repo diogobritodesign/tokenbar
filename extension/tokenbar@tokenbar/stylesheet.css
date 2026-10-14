@@ -214,6 +214,22 @@
   color: #ff7b72;
 }
 
+.tokenbar-update {
+  spacing: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background-color: rgba(169, 124, 248, 0.16);
+}
+
+.tokenbar-update-title {
+  font-weight: 600;
+  color: #c4a6fb;
+}
+
+.tokenbar-update-how {
+  color: #a8a2b8;
+}
+
 .tokenbar-warning {
   padding: 10px 14px;
   border-radius: 14px;

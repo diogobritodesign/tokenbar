@@ -37,6 +37,8 @@ Shell desenha.
 - **Configurações dentro do painel**: contas, o que a barra mostra, limites de
   cor, metas, moeda, idioma, intervalo do coletor, posição.
 - Atalho de teclado (`Super`+`Alt`+`T`) e exportação do histórico em CSV.
+- **Aviso de atualização**: uma vez por dia confere no GitHub se há versão nova
+  e mostra uma faixa no painel (dá para desligar).
 
 ## Provedores
 
@@ -78,7 +80,9 @@ cd tokenbar
 ./install.sh
 ```
 
-Depois **encerre a sessão e entre de novo**. No Wayland, o GNOME Shell só
+Depois **encerre a sessão e entre de novo**.
+
+Para atualizar depois: `git pull && ./install.sh`, e entre de novo na sessão. No Wayland, o GNOME Shell só
 carrega uma extensão nova (ou código novo de extensão) no início da sessão.
 
 `./uninstall.sh` remove tudo: serviço, extensão, configurações, fonte, cache e
@@ -86,7 +90,10 @@ histórico.
 
 ## Como funciona
 
-- O **coletor** (`collector/`) roda como `tokenbar-collector.service`. Cada
+- O **coletor** (`collector/`) roda como `tokenbar-collector.service`. Ele
+  coleta no intervalo das configurações e também logo depois que você usa o
+  Claude Code ou o Codex (observa as pastas de conversa), no máximo uma vez por
+  minuto. Cada
   provedor tem timeout de rede de 10 s e falha sozinho, sem derrubar os
   outros. Em HTTP 429 ele mantém o último valor e espera 5 minutos.
   `tokenbar-collector --once` força uma atualização (botão "Atualizar").
@@ -109,9 +116,10 @@ histórico.
 - O TokenBar se identifica com honestidade e não se passa por outros
   programas. Por isso faltam aqui algumas coisas que outros monitores mostram;
   veja [Limitações](#limitações).
-- Dois serviços públicos são consultados sem autenticação: uma API de câmbio
-  (dólar→real, no máximo duas vezes por dia) e o status.claude.com (a cada 5
-  minutos). Nada sobre você é enviado a eles.
+- Três serviços públicos são consultados sem autenticação: uma API de câmbio
+  (dólar→real, no máximo duas vezes por dia), o status.claude.com (a cada 5
+  minutos) e a API do GitHub para o aviso de atualização (uma vez por dia, dá
+  para desligar). Nada sobre você é enviado a eles.
 
 ## Sobre o valor em dinheiro
 
@@ -155,8 +163,8 @@ shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 54 testes de unidade/integração, só Node
-scripts/ui-test.sh          # 43 verificações num GNOME Shell headless de verdade
+npm test                    # 65 testes de unidade/integração, só Node
+scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração
 ```
 

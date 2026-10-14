@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import { backfillHistoryOnce, collectOnce, historyCsv, loadConfig } from '../src/collect.js';
+import { CollectionScheduler, activityPaths, watchActivity } from '../src/activity.js';
 import { setLanguage, t } from '../src/i18n.js';
 
 const args = process.argv.slice(2);
@@ -30,7 +31,7 @@ if (exportIndex !== -1) {
 async function cycle() {
   const config = await loadConfig();
   try {
-    await collectOnce(config);
+    await collectOnce(config, { forceUpdateCheck: args.includes('--check-update') });
     return { config, ok: true };
   } catch (error) {
     console.error(`tokenbar: ${t('log.stateWrite', { code: error?.code || error?.name || 'error' })}`);
@@ -38,7 +39,7 @@ async function cycle() {
   }
 }
 
-if (args.includes('--once')) {
+if (args.includes('--once') || args.includes('--check-update')) {
   const { ok } = await cycle();
   process.exit(ok ? 0 : 1);
 }
@@ -46,6 +47,11 @@ if (args.includes('--once')) {
 // A gravação é atômica (tmp + rename), então sair no meio de um ciclo é seguro.
 process.on('SIGTERM', () => process.exit(0));
 process.on('SIGINT', () => process.exit(0));
+
+// Coleta no intervalo das configurações e, além disso, logo depois de cada uso
+// do Claude Code ou do Codex (no máximo uma vez por minuto).
+const scheduler = new CollectionScheduler();
+watchActivity(await activityPaths(), () => scheduler.activity());
 
 let backfilled = false;
 for (;;) {
@@ -55,5 +61,6 @@ for (;;) {
     await backfillHistoryOnce(config).catch(() => console.error(`tokenbar: history: ${t('log.backfill')}`));
     await cycle();
   }
-  await new Promise((resolve) => setTimeout(resolve, config.intervalSec * 1000));
+  scheduler.ran(config.intervalSec * 1000);
+  await scheduler.wait();
 }

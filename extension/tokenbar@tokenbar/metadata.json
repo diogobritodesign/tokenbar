@@ -9,5 +9,6 @@
   ],
   "settings-schema": "org.gnome.shell.extensions.tokenbar",
   "version": 1,
-  "url": "https://github.com/diogobritodesign/tokenbar"
+  "url": "https://github.com/diogobritodesign/tokenbar",
+  "version-name": "0.1.0"
 }

@@ -55,6 +55,14 @@
       <default>'auto'</default>
       <summary>Idioma da interface: auto segue o sistema (português ou inglês)</summary>
     </key>
+    <key name="update-check" type="b">
+      <default>true</default>
+      <summary>Procurar uma vez por dia se há versão nova no GitHub</summary>
+    </key>
+    <key name="update-notified" type="s">
+      <default>''</default>
+      <summary>Última versão já avisada (para não repetir a notificação)</summary>
+    </key>
     <key name="background-blur" type="b">
       <default>true</default>
       <summary>Desfocar o que fica atrás do painel (desligado, o fundo fica quase opaco)</summary>

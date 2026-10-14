@@ -38,6 +38,8 @@ draws it.
 - **Settings inside the panel**: accounts, what the bar shows, colour
   thresholds, goals, currency, language, collector interval, position.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
+- **Update notice**: once a day it checks GitHub for a newer version and shows
+  a banner (can be turned off).
 
 ## Supported providers
 
@@ -78,7 +80,9 @@ cd tokenbar
 ./install.sh
 ```
 
-Then **log out and back in**. On Wayland, GNOME Shell only loads a newly
+Then **log out and back in**.
+
+To update later: `git pull && ./install.sh`, then log out and back in. On Wayland, GNOME Shell only loads a newly
 installed extension (or new extension code) when the session starts.
 
 `./uninstall.sh` removes everything: the service, the extension, its settings,
@@ -100,7 +104,10 @@ the font, the cache and the history.
                                                   └───────────────────────────┘
 ```
 
-- The **collector** (`collector/`) runs as `tokenbar-collector.service`. Each
+- The **collector** (`collector/`) runs as `tokenbar-collector.service`. It
+  collects at the interval set in the settings and also right after you use
+  Claude Code or Codex (it watches their conversation folders), at most once a
+  minute. Each
   provider has a 10 s network timeout and fails on its own without taking the
   others down. On HTTP 429 it keeps the last value and waits 5 minutes.
   `tokenbar-collector --once` forces a refresh (the panel's "Refresh"
@@ -127,9 +134,10 @@ Files it writes:
 - TokenBar identifies itself honestly and does not impersonate other clients.
   That is why some things other monitors show are missing here; see
   [Limitations](#limitations).
-- Two unauthenticated public services are contacted: an exchange-rate API
-  (USD→BRL, at most twice a day) and status.claude.com (every 5 minutes).
-  Nothing about you is sent to them.
+- Three unauthenticated public services are contacted: an exchange-rate API
+  (USD→BRL, at most twice a day), status.claude.com (every 5 minutes) and the
+  GitHub API for the update check (once a day, can be turned off). Nothing
+  about you is sent to them.
 
 ## About the cost figure
 
@@ -172,8 +180,8 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 ## Development
 
 ```sh
-npm test                    # 54 unit/integration tests, Node only
-scripts/ui-test.sh          # 43 checks against a real headless GNOME Shell
+npm test                    # 65 unit/integration tests, Node only
+scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
 scripts/preview.sh --demo   # nested shell with demo data
 ```
 

@@ -14,7 +14,7 @@ import {
 } from './lib/format.js';
 import {
     CONTENT_WIDTH, labeled, makeChart, makeChoice, makeDot, makeRing, makeStepper, makeSwitch, openFolder,
-    setLevel, settingRow,
+    openUri, setLevel, settingRow,
 } from './lib/widgets.js';
 import {getLanguage, t} from './lib/i18n.js';
 import {BAR_MODES, CURRENCIES, DISPLAY_MODES, LANGUAGE_MODES, POSITIONS, PROVIDERS} from './providers.js';
@@ -37,6 +37,10 @@ const SEGMENT_GAP = 3;
 const BLUR_RADIUS = 18;
 // Situações passageiras em que o último valor continua valendo.
 const SOFT_STATUSES = ['idle', 'rate_limited'];
+// Autor e endereços mostrados em "Sobre".
+const AUTHOR = 'Diogo Brito';
+const AUTHOR_URL = 'https://diogobrito.com.br/';
+const REPOSITORY_URL = 'https://github.com/diogobritodesign/tokenbar';
 // [valor, chave do rótulo, quantos dias somar]
 const PERIODS = [
     ['today', 'period.today', 1],
@@ -163,6 +167,33 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._popup.add_child(this._warning);
         this._serviceNote = new St.Label({style_class: 'tokenbar-warning', visible: false});
         this._popup.add_child(this._serviceNote);
+
+        // Faixa de versão nova; só aparece quando o coletor encontrou uma.
+        this._updateBox = new St.BoxLayout({
+            style_class: 'tokenbar-update',
+            orientation: Clutter.Orientation.VERTICAL,
+            visible: false,
+        });
+        this._updateBox.add_child(new St.Label({style_class: 'tokenbar-update-title', text: t('update.title')}));
+        this._updateSummary = new St.Label({style_class: 'tokenbar-small'});
+        this._updateSummary.clutter_text.line_wrap = true;
+        this._updateSummary.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._updateBox.add_child(this._updateSummary);
+        const updateRow = new St.BoxLayout({style_class: 'tokenbar-set-row'});
+        updateRow.add_child(new St.Label({
+            style_class: 'tokenbar-tiny tokenbar-update-how',
+            text: t('update.how'),
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        const updateButton = new St.Button({style_class: 'tokenbar-button tokenbar-button-small tokenbar-button-primary', label: t('update.view'), can_focus: true});
+        updateButton.connect('clicked', () => {
+            this.menu.close();
+            openUri(this._state?.update?.url ?? REPOSITORY_URL);
+        });
+        updateRow.add_child(updateButton);
+        this._updateBox.add_child(updateRow);
+        this._popup.add_child(this._updateBox);
 
         // Cartões e configurações rolam se não couberem na altura da tela.
         const scrolled = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
@@ -358,6 +389,55 @@ class TokenBarIndicator extends PanelMenu.Button {
             style_class: 'tokenbar-muted tokenbar-tiny',
             text: t('set.shortcut'),
         }));
+
+        this._buildAboutCard();
+    }
+
+    _buildAboutCard() {
+        const settings = this._settings;
+        const about = this._settingsCard(t('set.about'));
+        const update = this._state?.update;
+        const version = this._extension.metadata['version-name'] ?? String(this._extension.metadata.version ?? '');
+        const build = update?.installed && update.installed !== version ? ` (${update.installed})` : '';
+        about.add_child(new St.Label({text: `TokenBar · ${t('about.version', {version})}${build}`}));
+        about.add_child(new St.Label({style_class: 'tokenbar-muted tokenbar-small', text: `${t('about.createdBy', {name: AUTHOR})} · ${t('about.license')}`}));
+
+        const links = new St.BoxLayout({style_class: 'tokenbar-segmented tokenbar-choice'});
+        for (const [label, uri] of [[t('about.site'), AUTHOR_URL], [t('about.code'), REPOSITORY_URL]]) {
+            const link = new St.Button({style_class: 'tokenbar-button tokenbar-button-small', label, can_focus: true, x_expand: true});
+            link.connect('clicked', () => {
+                this.menu.close();
+                openUri(uri);
+            });
+            links.add_child(link);
+        }
+        about.add_child(links);
+
+        about.add_child(settingRow(t('set.updateCheck'),
+            makeSwitch(settings.get_boolean('update-check'),
+                active => settings.set_boolean('update-check', active))));
+
+        const status = !update ? t('set.updateUnknown')
+            : update.available ? `${t('update.title')}: ${update.latest}` : t('set.upToDate');
+        const statusRow = new St.BoxLayout({style_class: 'tokenbar-set-row'});
+        const statusLabel = new St.Label({
+            style_class: update?.available ? 'tokenbar-small tokenbar-pace' : 'tokenbar-small tokenbar-muted',
+            text: status,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        statusLabel.clutter_text.line_wrap = true;
+        statusRow.add_child(statusLabel);
+        const checkNow = new St.Button({style_class: 'tokenbar-button tokenbar-button-small tokenbar-button-primary', label: t('set.updateCheckNow'), can_focus: true});
+        checkNow.connect('clicked', async () => {
+            checkNow.label = t('set.updateChecking');
+            checkNow.reactive = false;
+            await this._refresh('--check-update');
+            if (!this._destroyed && this._view === 'settings')
+                this._setView('settings');
+        });
+        statusRow.add_child(checkNow);
+        about.add_child(statusRow);
     }
 
     async _exportHistory(button) {
@@ -551,6 +631,10 @@ class TokenBarIndicator extends PanelMenu.Button {
             .map(service => t('service.incident', {name: service.name, text: service.description || service.indicator}))
             .join('\n');
         this._serviceNote.visible = inMain && troubled.length > 0;
+
+        const update = this._state?.update;
+        this._updateBox.visible = inMain && update?.available === true;
+        this._updateSummary.text = update?.summary ? `${update.latest} · ${update.summary}` : String(update?.latest ?? '');
 
         this._sections.destroy_all_children();
         if (inMain) {
@@ -993,7 +1077,7 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._scroll.style = `max-height: ${Math.max(room, 200)}px;`;
     }
 
-    async _refresh() {
+    async _refresh(mode = '--once') {
         if (this._refreshing || this._destroyed)
             return;
         this._refreshing = true;
@@ -1001,7 +1085,7 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._refreshButton.reactive = false;
         let failed = false;
         try {
-            const proc = Gio.Subprocess.new([this._collectorPath, '--once'],
+            const proc = Gio.Subprocess.new([this._collectorPath, mode],
                 Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
             await proc.wait_async(this._cancellable);
             failed = !proc.get_successful();
@@ -1013,7 +1097,7 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._refreshing = false;
         this._refreshButton.label = failed ? t('refresh.failed') : t('refresh');
         this._refreshButton.reactive = true;
-        this._load();
+        await this._load();
     }
 
     destroy() {

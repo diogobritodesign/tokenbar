@@ -35,6 +35,7 @@ export default class TokenBarExtension extends Extension {
             'changed::panel-index', () => this._queueRecreate(),
             'changed::language', () => this._applyLanguage(true),
             'changed::collector-interval', () => this._writeCollectorConfig(),
+            'changed::update-check', () => this._writeCollectorConfig(),
             'changed::disabled-providers', () => this._writeCollectorConfig(),
             this);
         this._applyLanguage(false);
@@ -107,6 +108,13 @@ export default class TokenBarExtension extends Extension {
 
         const providers = Array.isArray(state.providers) ? state.providers.filter(p => p && p.id) : [];
 
+        // Versão nova: um aviso por versão, lembrado entre sessões.
+        const update = state.update;
+        if (enabled && update?.available && update.latest && this._settings.get_string('update-notified') !== update.latest) {
+            this._settings.set_string('update-notified', update.latest);
+            Main.notify(t('notify.update'), [update.latest, update.summary].filter(Boolean).join(' · '));
+        }
+
         // Conta que perdeu o login desde a última coleta.
         for (const provider of providers) {
             const before = this._statuses.get(provider.id);
@@ -164,6 +172,7 @@ export default class TokenBarExtension extends Extension {
             disabledProviders: this._settings.get_strv('disabled-providers'),
             // O coletor escreve erros e rótulos no mesmo idioma da interface.
             language: getLanguage(),
+            updateCheck: this._settings.get_boolean('update-check'),
         };
         try {
             GLib.mkdir_with_parents(dir, 0o700);
