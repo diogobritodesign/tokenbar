@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test \"tests/*.test.js\"",
+    "test": "node --test \"tests/*.test.js\" && python3 -m unittest discover -s tests -p 'test_*.py'",
     "collect": "node collector/bin/tokenbar-collector.js --once"
   }
 }

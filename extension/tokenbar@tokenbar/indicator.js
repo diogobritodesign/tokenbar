@@ -126,13 +126,23 @@ class TokenBarIndicator extends PanelMenu.Button {
         this.menu.box.add_child(surface);
         this._surface = surface;
 
+        // O efeito desenha um pouco além da área do ator (cerca do raio do
+        // desfoque), por isso a camada fica recuada essa distância para
+        // dentro: o resultado termina na borda do painel e não vaza.
+        const blurHolder = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            style: `padding: ${BLUR_RADIUS}px;`,
+            x_expand: true,
+            y_expand: true,
+        });
         const blurLayer = new St.Widget({x_expand: true, y_expand: true});
+        blurHolder.add_child(blurLayer);
         blurLayer.add_effect(new Shell.BlurEffect({
             radius: BLUR_RADIUS,
             brightness: 1.0,
             mode: Shell.BlurMode.BACKGROUND,
         }));
-        surface.add_child(blurLayer);
+        surface.add_child(blurHolder);
         this._blurLayer = blurLayer;
         this._applyBlurSetting();
 
@@ -145,11 +155,15 @@ class TokenBarIndicator extends PanelMenu.Button {
         surface.add_child(this._popup);
 
         const header = new St.BoxLayout({style_class: 'tokenbar-header'});
-        header.add_child(new St.Label({
-            style_class: 'tokenbar-title',
-            text: 'TokenBar',
+        header.add_child(new St.Icon({
+            style_class: 'tokenbar-logo',
+            gicon: Gio.FileIcon.new(this._extension.dir.get_child('icons').get_child('tokenbar-mark.svg')),
             y_align: Clutter.ActorAlign.CENTER,
         }));
+        // Logotipo: "Token" na cor do texto, "Bar" no verde da marca.
+        const title = new St.Label({style_class: 'tokenbar-title', y_align: Clutter.ActorAlign.CENTER});
+        title.clutter_text.set_markup('Token<span foreground="#4fe37b">Bar</span>');
+        header.add_child(title);
         const agePill = new St.BoxLayout({
             style_class: 'tokenbar-pill',
             x_expand: true,

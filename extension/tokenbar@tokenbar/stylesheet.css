@@ -91,6 +91,14 @@
   padding: 6px 4px 0 8px;
 }
 
+.tokenbar-header {
+  spacing: 8px;
+}
+
+.tokenbar-logo {
+  icon-size: 18px;
+}
+
 .tokenbar-title {
   font-size: 15px;
   font-weight: 600;

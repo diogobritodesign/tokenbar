@@ -89,7 +89,7 @@ $GS set $SCHEMA bar-hidden-providers "[]"
 echo "Painel"
 ev "$I.menu.open(); 1" >/dev/null; sleep 1.5
 check "abre" "$(ev "$I.menu.isOpen")" "true"
-check "camada de desfoque do tamanho exato do painel" "$(ev "(() => { const b = $I._blurLayer, s = $I._surface; return [s.width - b.width, s.height - b.height, b.width > 300, b.get_effects().length].join(' '); })()")" "\"2 2 true 1\""
+check "camada de desfoque recuada pelo raio do desfoque, dentro do painel" "$(ev "(() => { const b = $I._blurLayer, s = $I._surface; return [s.width - b.width, s.height - b.height, b.width > 300, b.get_effects().length].join(' '); })()")" "\"38 38 true 1\""
 $GS set $SCHEMA background-blur false; sleep 0.5
 check "desligar o desfoque desativa o efeito e deixa o fundo sólido" "$(ev "(() => { const e = $I._blurLayer.get_effects()[0]; return [e.enabled, $I._surface.has_style_class_name('tokenbar-surface-solid')].join(' '); })()")" "\"false true\""
 $GS set $SCHEMA background-blur true; sleep 0.5

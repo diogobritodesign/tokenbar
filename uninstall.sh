@@ -15,6 +15,10 @@ fi
 rm -rf "$HOME/.local/share/gnome-shell/extensions/$UUID"
 dconf reset -f /org/gnome/shell/extensions/tokenbar/ 2>/dev/null || true
 
+echo "==> Tray icon"
+pkill -f "tokenbar_tray.py" 2>/dev/null || true
+rm -f "$HOME/.config/autostart/tokenbar-tray.desktop" "$HOME/.local/share/icons/hicolor/scalable/apps/tokenbar.svg"
+
 echo "==> Collector"
 systemctl --user disable --now tokenbar-collector.service 2>/dev/null || true
 rm -f "$HOME/.config/systemd/user/tokenbar-collector.service"

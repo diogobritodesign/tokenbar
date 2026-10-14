@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="linear-gradient-1" x1="92.165" y1="420.165" x2="419.835" y2="91.835" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4fe37b"/>
+      <stop offset="1" stop-color="#2ed47a"/>
+    </linearGradient>
+  </defs>
+  <title>tokenbar-mark.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M420 256.211 C419.883 346.786 346.364 420.116 255.789 420 C165.214 419.883 91.884 346.364 92 255.789 C92.117 165.214 165.636 91.884 256.211 92 C346.786 92.117 420.116 165.636 420 256.211 Z" fill="none" stroke="#3a3f46" stroke-width="78"/>
+    <path d="M255.835 92 C346.409 91.909 419.909 165.26 420 255.835 C420.091 346.409 346.74 419.909 256.165 420 C165.591 420.091 92.091 346.74 92 256.165 C91.909 165.591 165.26 92.091 255.835 92 Z" fill="none" stroke="url(#linear-gradient-1)" stroke-width="78" stroke-dasharray="730 301"/>
+  </g>
+</svg>

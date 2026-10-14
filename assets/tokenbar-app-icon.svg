@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="linear-gradient-1" x1="20" y1="20" x2="1004" y2="1004" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#202226"/>
+      <stop offset="1" stop-color="#111315"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="235.901" y1="785.896" x2="788.099" y2="238.104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4fe37b"/>
+      <stop offset="1" stop-color="#2ed47a"/>
+    </linearGradient>
+  </defs>
+  <title>tokenbar-app-icon.svg</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M240 20 L784 20 C905.503 20 1004 118.497 1004 240 L1004 784 C1004 905.503 905.503 1004 784 1004 L240 1004 C118.497 1004 20 905.503 20 784 L20 240 C20 118.497 118.497 20 240 20 Z" fill="url(#linear-gradient-1)" stroke="#30343b" stroke-width="8"/>
+    <path d="M787 512 C787 663.878 663.878 787 512 787 C360.122 787 237 663.878 237 512 C237 360.122 360.122 237 512 237 C663.878 237 787 360.122 787 512 Z" fill="none" stroke="#3a3f46" stroke-width="112"/>
+    <path d="M513.102 237.002 C664.979 237.611 787.606 361.225 786.998 513.102 C786.389 664.979 662.776 787.606 510.898 786.998 C359.021 786.389 236.394 662.776 237.002 510.898 C237.611 359.021 361.225 236.394 513.102 237.002 Z" fill="none" stroke="url(#linear-gradient-2)" stroke-width="112" stroke-dasharray="1225 502"/>
+  </g>
+</svg>

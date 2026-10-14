@@ -38,8 +38,8 @@ export const MESSAGES = {
   'cli.csvNeedsPath': ['--export-csv precisa do caminho do arquivo', '--export-csv needs a file path'],
   'cli.csvFailed': ['não foi possível gravar o CSV ({code})', 'could not write the CSV ({code})'],
   'cli.help': [
-    'uso: tokenbar-collector [--once | --check-update | --export-csv ARQUIVO]\n\n  --once               coleta uma vez, grava state.json e sai\n  --check-update       como --once, procurando versão nova agora\n  --export-csv ARQUIVO grava o histórico diário em CSV e sai\n  (sem argumentos: fica em loop, no intervalo definido nas configurações)',
-    'usage: tokenbar-collector [--once | --check-update | --export-csv FILE]\n\n  --once             collect once, write state.json and exit\n  --check-update     like --once, checking for a new version right away\n  --export-csv FILE  write the daily history as CSV and exit\n  (no arguments: loop at the interval set in the settings)'
+    'uso: tokenbar-collector [--once | --check-update | --export-csv ARQUIVO | --waybar | --polybar]\n\n  --once               coleta uma vez, grava state.json e sai\n  --check-update       como --once, procurando versão nova agora\n  --export-csv ARQUIVO grava o histórico diário em CSV e sai\n  --waybar, --polybar  imprime o estado para essas barras (só lê, não coleta)\n  (sem argumentos: fica em loop, no intervalo definido nas configurações)',
+    'usage: tokenbar-collector [--once | --check-update | --export-csv FILE | --waybar | --polybar]\n\n  --once             collect once, write state.json and exit\n  --check-update     like --once, checking for a new version right away\n  --export-csv FILE  write the daily history as CSV and exit\n  --waybar, --polybar  print the state for those bars (read-only, no collection)\n  (no arguments: loop at the interval set in the settings)'
   ]
 };
 

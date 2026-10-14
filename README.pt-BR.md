@@ -1,8 +1,11 @@
+<p align="center"><img src="assets/tokenbar-app-icon.svg" width="112" alt="TokenBar"></p>
+
 # TokenBar
 
 [English](README.md) · **Português**
 
-Limites de uso de IA, sempre visíveis na barra superior do GNOME.
+Limites de uso de IA, sempre visíveis na barra superior do GNOME, na bandeja
+do sistema em outros desktops Linux, ou na Waybar/Polybar.
 
 O TokenBar mostra quanto resta da sua cota do **Claude Code**, **Codex /
 ChatGPT**, **Antigravity** e **GitHub Copilot**, e abre um painel com os
@@ -69,8 +72,8 @@ depende do próprio programa: o cartão dele precisa do Antigravity IDE aberto
   openSUSE).
 - `ss` do iproute2 (para o Antigravity) e `gh` (para o Copilot), opcionais.
 
-É uma extensão do GNOME Shell: não funciona em KDE, Xfce, Cinnamon ou outros
-ambientes.
+Fora do GNOME, a extensão é trocada por um ícone de bandeja (veja
+[Outros desktops](#outros-desktops)), que precisa do Python 3 com PyGObject.
 
 ## Instalar
 
@@ -87,6 +90,58 @@ carrega uma extensão nova (ou código novo de extensão) no início da sessão.
 
 `./uninstall.sh` remove tudo: serviço, extensão, configurações, fonte, cache e
 histórico.
+
+## Outros desktops
+
+No **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** e outros desktops com bandeja
+do sistema, o `./install.sh` instala um **ícone de bandeja** no lugar da
+extensão do GNOME: um anel da conta mais crítica, o percentual como texto (onde
+o desktop mostra texto) e um menu com todas as contas, o custo do dia,
+atualizar e sobre. Ele abre sozinho no login. No GNOME dá para adicionar também
+com `./install.sh --tray` (precisa da extensão AppIndicator).
+
+![Menu do ícone de bandeja](docs/screenshots/tray.png)
+
+Ele fala o protocolo padrão de bandeja (StatusNotifierItem) pelo D-Bus usando
+só o PyGObject: sem GTK e sem biblioteca de AppIndicator. Precisa do Python 3
+com PyGObject (`python3-gobject` no Fedora/openSUSE, `python3-gi` no
+Debian/Ubuntu, `python-gobject` no Arch). Foi testado com o host de bandeja do
+GNOME; ainda não foi testado no próprio KDE, Xfce ou Cinnamon — relatos são
+bem-vindos.
+
+As opções ficam no bloco `"bar"` do `~/.config/tokenbar/config.json`:
+
+```json
+{ "language": "pt", "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "brl" } }
+```
+
+`label` pode ser `critical` (a conta mais crítica), `all` ou `none`.
+
+### Waybar e Polybar
+
+`tokenbar-collector --waybar` e `--polybar` imprimem o estado atual (só leem o
+`state.json`, não coletam nada):
+
+```jsonc
+// ~/.config/waybar/config
+"custom/tokenbar": {
+  "exec": "tokenbar-collector --waybar",
+  "return-type": "json",
+  "interval": 30
+}
+```
+
+```ini
+; ~/.config/polybar/config.ini
+[module/tokenbar]
+type = custom/script
+exec = tokenbar-collector --polybar
+interval = 30
+```
+
+O módulo da Waybar recebe a classe `ok`, `warn`, `crit` ou `off` para estilo.
+Instale com o `./install.sh` normalmente (se quiser só o módulo da barra, dá
+para fechar o ícone de bandeja pelo menu dele).
 
 ## Como funciona
 
@@ -163,8 +218,9 @@ shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 65 testes de unidade/integração, só Node
+npm test                    # 69 testes em Node + 10 em Python (bandeja)
 scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
+scripts/tray-test.sh        # 15 verificações da bandeja pelo D-Bus, no mesmo esquema isolado
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração
 ```
 

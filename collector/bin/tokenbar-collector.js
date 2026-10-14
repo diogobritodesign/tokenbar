@@ -2,13 +2,25 @@
 import fs from 'node:fs/promises';
 import { backfillHistoryOnce, collectOnce, historyCsv, loadConfig } from '../src/collect.js';
 import { CollectionScheduler, activityPaths, watchActivity } from '../src/activity.js';
+import { polybarOutput, waybarOutput } from '../src/bar.js';
+import { readJson } from '../src/files.js';
 import { setLanguage, t } from '../src/i18n.js';
+import { STATE_FILE } from '../src/paths.js';
 
 const args = process.argv.slice(2);
 setLanguage((await loadConfig()).language);
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(t('cli.help'));
+  process.exit(0);
+}
+
+// Saída para barras de outros ambientes: só lê o state.json e imprime.
+if (args.includes('--waybar') || args.includes('--polybar')) {
+  const state = await readJson(STATE_FILE);
+  const config = await loadConfig();
+  const options = { showRemaining: config.bar.showRemaining, warn: config.bar.warn, crit: config.bar.crit };
+  console.log(args.includes('--waybar') ? JSON.stringify(waybarOutput(state, options)) : polybarOutput(state, options));
   process.exit(0);
 }
 

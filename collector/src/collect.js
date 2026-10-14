@@ -38,6 +38,11 @@ function logError(scope, message) {
   console.error(`tokenbar: ${scope}: ${message}`);
 }
 
+function clampInt(value, min, max, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(Math.max(Math.round(number), min), max) : fallback;
+}
+
 export async function loadConfig() {
   const raw = (await readJson(CONFIG_FILE)) || {};
   const interval = Number(raw.intervalSec);
@@ -49,7 +54,16 @@ export async function loadConfig() {
     // null = seguir o idioma do sistema
     language: LANGUAGES.includes(raw.language) ? raw.language : null,
     // Checagem diária de versão nova no GitHub; ligada por padrão.
-    updateCheck: raw.updateCheck !== false
+    updateCheck: raw.updateCheck !== false,
+    // Opções de exibição para a bandeja e as barras fora do GNOME (no GNOME,
+    // a extensão tem as próprias, no GSettings).
+    bar: {
+      showRemaining: raw.bar?.showRemaining !== false,
+      warn: clampInt(raw.bar?.warn, 1, 99, 60),
+      crit: clampInt(raw.bar?.crit, 2, 100, 85),
+      currency: ['brl', 'usd'].includes(raw.bar?.currency) ? raw.bar.currency : null,
+      label: ['critical', 'all', 'none'].includes(raw.bar?.label) ? raw.bar.label : 'critical'
+    }
   };
 }
 

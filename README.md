@@ -1,8 +1,11 @@
+<p align="center"><img src="assets/tokenbar-app-icon.svg" width="112" alt="TokenBar"></p>
+
 # TokenBar
 
 **English** · [Português](README.pt-BR.md)
 
-AI usage limits, always visible in the GNOME top bar.
+AI usage limits, always visible in the GNOME top bar, in the system tray on
+other Linux desktops, or in Waybar/Polybar.
 
 TokenBar shows how much of your **Claude Code**, **Codex / ChatGPT**,
 **Antigravity** and **GitHub Copilot** quota is left, and opens a panel with
@@ -69,8 +72,8 @@ terminal CLI on its own is not detected).
 - systemd user services (standard on Fedora, Ubuntu, Debian, Arch, openSUSE).
 - `ss` from iproute2 (for Antigravity) and `gh` (for Copilot), both optional.
 
-It is a GNOME Shell extension, so it does not work on KDE, Xfce, Cinnamon or
-other desktops.
+On desktops other than GNOME the extension is replaced by a tray icon (see
+[Other desktops](#other-desktops)), which needs Python 3 with PyGObject.
 
 ## Install
 
@@ -87,6 +90,58 @@ installed extension (or new extension code) when the session starts.
 
 `./uninstall.sh` removes everything: the service, the extension, its settings,
 the font, the cache and the history.
+
+## Other desktops
+
+On **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** and other desktops with a
+system tray, `./install.sh` installs a **tray icon** instead of the GNOME
+extension: a ring for the most critical account, its percentage as a label
+(where the desktop supports labels) and a menu with every account, today's
+cost, refresh and about. It starts at login. On GNOME you can add it too with
+`./install.sh --tray` (it needs the AppIndicator extension).
+
+![Tray icon menu](docs/screenshots/tray.png)
+
+It speaks the standard tray protocol (StatusNotifierItem) over D-Bus with
+PyGObject only: no GTK, no AppIndicator library. Python 3 with PyGObject is
+needed (`python3-gobject` on Fedora/openSUSE, `python3-gi` on Debian/Ubuntu,
+`python-gobject` on Arch). It has been tested against GNOME's tray host; it
+has not yet been tested on KDE, Xfce or Cinnamon themselves, so reports are
+welcome.
+
+Options live in the `"bar"` block of `~/.config/tokenbar/config.json`:
+
+```json
+{ "language": "en", "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "usd" } }
+```
+
+`label` can be `critical` (the most critical account), `all` or `none`.
+
+### Waybar and Polybar
+
+`tokenbar-collector --waybar` and `--polybar` print the current state (they
+only read `state.json`, nothing is collected):
+
+```jsonc
+// ~/.config/waybar/config
+"custom/tokenbar": {
+  "exec": "tokenbar-collector --waybar",
+  "return-type": "json",
+  "interval": 30
+}
+```
+
+```ini
+; ~/.config/polybar/config.ini
+[module/tokenbar]
+type = custom/script
+exec = tokenbar-collector --polybar
+interval = 30
+```
+
+The Waybar module gets the class `ok`, `warn`, `crit` or `off` for styling.
+Install with `./install.sh` as usual (the tray icon can then be closed from its
+menu if you only want the bar module).
 
 ## How it works
 
@@ -180,8 +235,9 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 ## Development
 
 ```sh
-npm test                    # 65 unit/integration tests, Node only
+npm test                    # 69 Node tests + 10 Python tests (tray)
 scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
+scripts/tray-test.sh        # 15 checks of the tray icon over D-Bus, same isolated setup
 scripts/preview.sh --demo   # nested shell with demo data
 ```
 
