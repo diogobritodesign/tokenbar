@@ -24,7 +24,8 @@ export async function installedVersion(file) {
   return {
     version: typeof data.version === 'string' ? data.version : null,
     commit: typeof data.commit === 'string' && /^[0-9a-f]{7,40}$/.test(data.commit) ? data.commit : null,
-    installedAt: Number.isFinite(Date.parse(data.installedAt)) ? data.installedAt : null
+    installedAt: Number.isFinite(Date.parse(data.installedAt)) ? data.installedAt : null,
+    source: typeof data.source === 'string' && data.source.startsWith('/') ? data.source : null
   };
 }
 
@@ -32,10 +33,13 @@ export async function installedVersion(file) {
 // feitas sem git (sem commit gravado) comparam pela data.
 export function isNewer(installed, latest) {
   if (!installed || !latest?.sha) return false;
-  if (installed.commit) return !latest.sha.startsWith(installed.commit);
   const published = Date.parse(latest.date);
   const installedAt = Date.parse(installed.installedAt);
-  return Number.isFinite(published) && Number.isFinite(installedAt) && published > installedAt;
+  // Publicado antes de instalar não é novidade, mesmo com outro commit (uma
+  // resposta antiga guardada, ou instalado de um commit local mais novo).
+  if (Number.isFinite(published) && Number.isFinite(installedAt) && published <= installedAt) return false;
+  if (installed.commit) return !latest.sha.startsWith(installed.commit);
+  return Number.isFinite(published) && Number.isFinite(installedAt);
 }
 
 // Consulta o GitHub no máximo uma vez por dia (a API pública, sem login; nada
@@ -48,7 +52,9 @@ export async function checkForUpdate({ enabled, force = false, now = Date.now(),
 
   const cached = await readJson(updateCacheFile());
   let latest = cached?.latest ?? null;
-  const due = force || !Number.isFinite(cached?.nextTryAt) || now >= cached.nextTryAt;
+  // Reinstalou desde a última consulta: a resposta guardada não vale mais.
+  const reinstalled = (cached?.installed ?? null) !== (installed.commit ?? installed.installedAt);
+  const due = force || reinstalled || !Number.isFinite(cached?.nextTryAt) || now >= cached.nextTryAt;
   if (due) {
     try {
       const body = await fetchJson(LATEST_URL, { accept: 'application/vnd.github+json', 'user-agent': 'tokenbar' });
@@ -57,9 +63,9 @@ export async function checkForUpdate({ enabled, force = false, now = Date.now(),
         date: String(body?.commit?.committer?.date || ''),
         summary: String(body?.commit?.message || '').split('\n')[0].slice(0, 120)
       };
-      await writeJsonAtomic(updateCacheFile(), { latest, nextTryAt: now + CHECK_EVERY_MS });
+      await writeJsonAtomic(updateCacheFile(), { latest, installed: installed.commit ?? installed.installedAt, nextTryAt: now + CHECK_EVERY_MS });
     } catch {
-      await writeJsonAtomic(updateCacheFile(), { latest, nextTryAt: now + RETRY_MS }).catch(() => {});
+      await writeJsonAtomic(updateCacheFile(), { latest, installed: installed.commit ?? installed.installedAt, nextTryAt: now + RETRY_MS }).catch(() => {});
     }
   }
 
@@ -70,6 +76,8 @@ export async function checkForUpdate({ enabled, force = false, now = Date.now(),
     latest: latest?.sha ? latest.sha.slice(0, 7) : null,
     latestDate: latest?.date || null,
     summary: latest?.summary || null,
+    // Pasta do clone usado na instalação: permite atualizar com um clique.
+    source: installed.commit ? installed.source : null,
     url: installed.commit && latest?.sha ? `${REPOSITORY_URL}/compare/${installed.commit.slice(0, 7)}...${latest.sha.slice(0, 7)}` : `${REPOSITORY_URL}/commits/main`
   };
 }

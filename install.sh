@@ -57,7 +57,7 @@ cp -r "$SRC/collector" "$APP_DIR/collector"
 # Qual versão foi instalada, para o aviso de atualização comparar com o GitHub.
 COMMIT="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
 VERSION="$("$NODE" -p "require('$SRC/package.json').version")"
-printf '{"version":"%s","commit":"%s","installedAt":"%s"}\n' "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+printf '{"version":"%s","commit":"%s","installedAt":"%s","source":"%s"}\n' "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SRC" \
   > "$APP_DIR/collector/VERSION.json"
 
 # O caminho absoluto do node e o PATH deste terminal ficam gravados aqui porque

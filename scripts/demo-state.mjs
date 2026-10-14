@@ -46,7 +46,8 @@ const state = {
   services: [{ id: 'claude', name: 'Claude', indicator: 'none', description: 'All Systems Operational' }],
   update: process.argv.includes('--update') ? {
     installed: 'a1b2c3d', version: '0.1.0', available: true, latest: 'e4f5a6b', latestDate: iso(now - 3 * HOUR),
-    summary: en ? 'Add Gemini CLI support' : 'Suporte ao Gemini CLI', url: 'https://github.com/diogobritodesign/tokenbar/compare/a1b2c3d...e4f5a6b'
+    summary: process.env.TOKENBAR_DEMO_SUMMARY || (en ? 'Add Gemini CLI support' : 'Suporte ao Gemini CLI'),
+    source: process.env.TOKENBAR_DEMO_SOURCE || null, url: 'https://github.com/diogobritodesign/tokenbar/compare/a1b2c3d...e4f5a6b'
   } : null,
   accounts: [
     { id: 'claude-main', label: 'CLD', name: en ? 'Claude (main)' : 'Claude (principal)', enabled: true },

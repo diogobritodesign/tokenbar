@@ -187,6 +187,8 @@ class TokenBarIndicator extends PanelMenu.Button {
         // Faixa de versão nova; só aparece quando o coletor encontrou uma.
         this._updateBox = new St.BoxLayout({
             style_class: 'tokenbar-update',
+            // Largura fixa como a dos cartões: um resumo longo quebra a linha em vez de alargar o painel.
+            style: `width: ${CONTENT_WIDTH}px;`,
             orientation: Clutter.Orientation.VERTICAL,
             visible: false,
         });
@@ -195,19 +197,21 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._updateSummary.clutter_text.line_wrap = true;
         this._updateSummary.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._updateBox.add_child(this._updateSummary);
+        this._updateHow = new St.Label({style_class: 'tokenbar-tiny tokenbar-update-how', text: t('update.how')});
+        this._updateHow.clutter_text.line_wrap = true;
+        this._updateHow.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._updateBox.add_child(this._updateHow);
         const updateRow = new St.BoxLayout({style_class: 'tokenbar-set-row'});
-        updateRow.add_child(new St.Label({
-            style_class: 'tokenbar-tiny tokenbar-update-how',
-            text: t('update.how'),
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        }));
-        const updateButton = new St.Button({style_class: 'tokenbar-button tokenbar-button-small tokenbar-button-primary', label: t('update.view'), can_focus: true});
-        updateButton.connect('clicked', () => {
+        updateRow.add_child(new St.Widget({x_expand: true}));
+        const viewButton = new St.Button({style_class: 'tokenbar-button tokenbar-button-small', label: t('update.view'), can_focus: true});
+        viewButton.connect('clicked', () => {
             this.menu.close();
             openUri(this._state?.update?.url ?? REPOSITORY_URL);
         });
-        updateRow.add_child(updateButton);
+        updateRow.add_child(viewButton);
+        this._updateNow = new St.Button({style_class: 'tokenbar-button tokenbar-button-small tokenbar-button-primary', label: t('update.now'), can_focus: true});
+        this._updateNow.connect('clicked', () => this._selfUpdate());
+        updateRow.add_child(this._updateNow);
         this._updateBox.add_child(updateRow);
         this._popup.add_child(this._updateBox);
 
@@ -652,7 +656,10 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._serviceNote.visible = inMain && troubled.length > 0;
 
         const update = this._state?.update;
-        this._updateBox.visible = inMain && update?.available === true;
+        this._updateBox.visible = inMain && (update?.available === true || this._updateStatus !== undefined);
+        this._updateNow.visible = Boolean(update?.source) && this._updateStatus !== 'done';
+        if (this._updateStatus === undefined)
+            this._updateHow.text = update?.source ? t('update.auto') : t('update.how');
         this._updateSummary.text = update?.summary ? `${update.latest} · ${update.summary}` : String(update?.latest ?? '');
 
         this._sections.destroy_all_children();
@@ -1119,6 +1126,38 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._refreshing = false;
         this._refreshButton.label = failed ? t('refresh.failed') : t('refresh');
         this._refreshButton.reactive = true;
+        await this._load();
+    }
+
+    // "Atualizar agora": git pull + ./install.sh no clone usado na instalação
+    // (o caminho vem do VERSION.json). Sem perguntar nada e sem sudo.
+    async _selfUpdate() {
+        const source = this._state?.update?.source;
+        if (!source || this._updateStatus === 'running')
+            return;
+        this._updateStatus = 'running';
+        this._updateNow.reactive = false;
+        this._updateNow.label = t('update.running');
+        this._updateHow.text = t('update.running');
+        let ok = false;
+        try {
+            const proc = Gio.Subprocess.new(
+                // O PATH do terminal da instalação (gravado no tokenbar-collector) acha o node do nvm etc.
+                ['bash', '-c', 'eval "$(grep -m1 "^PATH=" "$HOME/.local/bin/tokenbar-collector" 2>/dev/null)"; export PATH; ' +
+                    'cd "$1" && git pull --ff-only && ./install.sh', 'tokenbar-update', source],
+                Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
+            await proc.wait_async(this._cancellable);
+            ok = proc.get_successful();
+        } catch {
+            ok = false;
+        }
+        if (this._destroyed)
+            return;
+        this._updateStatus = ok ? 'done' : 'failed';
+        this._updateHow.text = ok ? t('update.done') : t('update.failed');
+        this._updateNow.reactive = true;
+        this._updateNow.label = t('update.now');
+        this._updateNow.visible = !ok;
         await this._load();
     }
 

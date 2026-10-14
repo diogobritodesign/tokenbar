@@ -172,6 +172,25 @@ ev "$I.menu.open(); 1" >/dev/null; sleep 1
 check "faixa de atualização aparece com o resumo" "$(has_text 'e4f5a6b · Suporte ao Gemini CLI')" "true"
 check "notificação de versão nova, uma vez" "$($GS get $SCHEMA update-notified)" "'e4f5a6b'"
 shot panel-update.png
+WIDTH="$(ev "$I.menu.box.get_preferred_width(-1)[1]")"
+# Resumo bem longo: tem de quebrar a linha, não alargar o painel.
+LONG='Fix blur spilling outside the panel; add background blur setting and a much longer description'
+# "Atualizar agora" com um clone de mentira: o git pull traz um commit e o install.sh só marca que rodou.
+git init -q --bare "$WORK/origin.git"; git clone -q "$WORK/origin.git" "$WORK/clone" 2>/dev/null
+printf '#!/bin/sh\ntouch "%s/installed"\n' "$WORK" > "$WORK/clone/install.sh"; chmod +x "$WORK/clone/install.sh"
+git -C "$WORK/clone" add install.sh; git -C "$WORK/clone" -c user.name=t -c user.email=t@t commit -qm one; git -C "$WORK/clone" push -q origin HEAD 2>/dev/null
+git clone -q "$WORK/origin.git" "$WORK/other"; echo x > "$WORK/other/new"; git -C "$WORK/other" add new
+git -C "$WORK/other" -c user.name=t -c user.email=t@t commit -qm two; git -C "$WORK/other" push -q origin HEAD 2>/dev/null
+TOKENBAR_DEMO_SUMMARY="$LONG" TOKENBAR_DEMO_SOURCE="$WORK/clone" node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
+check "resumo longo não alarga o painel" "$(ev "$I.menu.box.get_preferred_width(-1)[1]")" "$WIDTH"
+check "botão de atualizar com um clique" "$(ev "(() => { $FIND return !!byLabel('Atualizar agora'); })()")" "true"
+shot panel-update-long.png
+click "Atualizar agora" >/dev/null
+for _ in $(seq 40); do [[ -f "$WORK/installed" ]] && break; sleep 0.25; done; sleep 0.5
+check "atualizar agora faz git pull e roda o install.sh" "$([[ -f "$WORK/installed" && -f "$WORK/clone/new" ]] && echo sim)" "sim"
+check "avisa para sair e entrar na sessão" "$(has_text 'Pronto! Saia e entre de novo na sessão para o painel novo carregar.')" "true"
+shot panel-update-done.png
+node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" pt --update && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"; sleep 1.5
 click "Configurações" >/dev/null; sleep 0.8
 check "sobre mostra o autor" "$(has_text 'Criado por Diogo Brito')" "true"
 check "sobre tem os links do site e do GitHub" "$(ev "(() => { $FIND return !!byLabel('Site do autor') && !!byLabel('Código no GitHub'); })()")" "true"

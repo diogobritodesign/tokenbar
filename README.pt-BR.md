@@ -41,7 +41,9 @@ Shell desenha.
   cor, metas, moeda, idioma, intervalo do coletor, posição.
 - Atalho de teclado (`Super`+`Alt`+`T`) e exportação do histórico em CSV.
 - **Aviso de atualização**: uma vez por dia confere no GitHub se há versão nova
-  e mostra uma faixa no painel (dá para desligar). Um cartão **Sobre** nas
+  e mostra uma faixa no painel (dá para desligar), com um botão **Atualizar
+  agora** que roda `git pull && ./install.sh` sozinho na pasta de onde você
+  instalou. Um cartão **Sobre** nas
   configurações mostra a versão, o autor, o site e a licença.
 - **Atualiza logo depois que você usa** o Claude Code ou o Codex (no máximo uma
   vez por minuto) e, fora isso, no intervalo definido.

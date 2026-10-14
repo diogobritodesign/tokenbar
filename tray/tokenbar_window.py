@@ -141,6 +141,12 @@ WINDOW_STRINGS = {
     'partial': ('custo parcial: há uso de modelo sem preço na tabela', 'partial cost: some usage is from a model with no price in the table'),
     'update_title': ('Atualização disponível', 'Update available'),
     'update_how': ('para atualizar: git pull && ./install.sh', 'to update: git pull && ./install.sh'),
+    'update_auto': ('Um clique baixa e instala a versão nova.', 'One click downloads and installs the new version.'),
+    'update_now': ('Atualizar agora', 'Update now'),
+    'update_running': ('Baixando e instalando…', 'Downloading and installing…'),
+    'update_done': ('Pronto! A bandeja já reiniciou com a versão nova.', 'Done! The tray icon restarted with the new version.'),
+    'update_failed': ('Não deu para atualizar sozinho. No terminal, na pasta do TokenBar: git pull && ./install.sh',
+                      'Could not update automatically. In a terminal, in the TokenBar folder: git pull && ./install.sh'),
     'update_view': ('Ver novidades', 'See what changed'),
     'refresh': ('Atualizar', 'Refresh'), 'refreshing': ('Atualizando…', 'Refreshing…'),
     'refresh_failed': ('Falhou — tentar de novo', 'Failed — try again'),
@@ -525,6 +531,7 @@ class PanelWindow:
         self.details = set()
         self.refreshing = False
         self.hidden_at = 0.0
+        self.update_status = None
         self.refresh_label = None
         self.state = None
         self.options = None
@@ -631,7 +638,7 @@ class PanelWindow:
             if service and service.get('indicator') not in (None, 'none'):
                 popup.append(label(w('incident', name=service.get('name'), text=service.get('description') or service.get('indicator')), 'warning', wrap=True))
         update = (self.state or {}).get('update')
-        if isinstance(update, dict) and update.get('available'):
+        if isinstance(update, dict) and (update.get('available') or self.update_status):
             popup.append(self._update(update))
 
         sections = box(True, 8)
@@ -649,11 +656,40 @@ class PanelWindow:
         widget.append(label(w('update_title'), 'update-title'))
         summary = ' · '.join(str(part) for part in (update.get('latest'), update.get('summary')) if part)
         widget.append(label(summary, 'small', wrap=True))
+        source = update.get('source')
+        status = self.update_status
+        how = {'running': 'update_running', 'done': 'update_done', 'failed': 'update_failed'}.get(status) or ('update_auto' if source else 'update_how')
+        widget.append(label(w(how), 'tiny', 'muted', wrap=True))
         row = box(False, 8)
-        row.append(label(w('update_how'), 'tiny', 'muted', hexpand=True))
-        row.append(text_button(w('update_view'), lambda: self.open_uri(update.get('url') or core.REPOSITORY_URL), 'tb', 'small', 'primary'))
+        row.append(label('', hexpand=True))
+        row.append(text_button(w('update_view'), lambda: self.open_uri(update.get('url') or core.REPOSITORY_URL), 'tb', 'small'))
+        if source and status not in ('running', 'done'):
+            row.append(text_button(w('update_now'), lambda: self.self_update(source), 'tb', 'small', 'primary'))
         widget.append(row)
         return widget
+
+    def self_update(self, source):
+        """git pull + ./install.sh no clone usado na instalação, sem terminal."""
+        self.update_status = 'running'
+        self.render()
+        script = ('eval "$(grep -m1 "^PATH=" "$HOME/.local/bin/tokenbar-collector" 2>/dev/null)"; export PATH; '
+                  'cd "$1" && git pull --ff-only && ./install.sh')
+        try:
+            process = subprocess.Popen(['bash', '-c', script, 'tokenbar-update', source],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            self.update_status = 'failed'
+            self.render()
+            return
+
+        def wait():
+            if process.poll() is None:
+                return True
+            self.update_status = 'done' if process.returncode == 0 else 'failed'
+            self.render()
+            return False
+
+        GLib.timeout_add(500, wait)
 
     def _summary(self, providers):
         w = self.words

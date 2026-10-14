@@ -42,7 +42,8 @@ draws it.
   thresholds, goals, currency, language, collector interval, position.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
 - **Update notice**: once a day it checks GitHub for a newer version and shows
-  a banner (can be turned off). An **About** card in the settings shows the
+  a banner (can be turned off) with an **Update now** button that runs
+  `git pull && ./install.sh` for you in the folder you installed from. An **About** card in the settings shows the
   version, author, website and license.
 - **Refreshes right after you use** Claude Code or Codex (at most once a
   minute), and at a fixed interval otherwise.

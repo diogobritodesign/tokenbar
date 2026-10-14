@@ -27,12 +27,15 @@ test('compara pelo commit instalado; sem commit, pela data da instalação', () 
   assert.equal(isNewer({ installedAt: '2026-10-15T00:00:00Z' }, { sha: SHA_NEW, date: '2026-10-14T00:00:00Z' }), false);
   assert.equal(isNewer(null, { sha: SHA_NEW }), false);
   assert.equal(isNewer({ commit: 'aaaaaaa' }, null), false);
+  // Resposta antiga guardada: o publicado é anterior à instalação, então não é novidade.
+  assert.equal(isNewer({ commit: 'aaaaaaa', installedAt: '2026-10-15T00:00:00Z' }, { sha: SHA_NEW, date: '2026-10-14T00:00:00Z' }), false);
+  assert.equal(isNewer({ commit: 'aaaaaaa', installedAt: '2026-10-13T00:00:00Z' }, { sha: SHA_NEW, date: '2026-10-14T00:00:00Z' }), true);
 });
 
 test('arquivo de versão ausente ou inválido não quebra', async () => {
   assert.equal(await installedVersion(path.join(cacheHome, 'nao-existe.json')), null);
   await fs.writeFile(versionFile, JSON.stringify({ version: '0.1.0', commit: 'não é sha', installedAt: 'ontem' }));
-  assert.deepEqual(await installedVersion(versionFile), { version: '0.1.0', commit: null, installedAt: null });
+  assert.deepEqual(await installedVersion(versionFile), { version: '0.1.0', commit: null, installedAt: null, source: null });
 });
 
 test('desligado ou sem instalação registrada: nenhuma consulta', async () => {
@@ -48,7 +51,7 @@ test('encontra versão nova, monta o link de comparação e consulta só uma vez
   const first = await checkForUpdate({ enabled: true, now, versionFile });
   assert.deepEqual(first, {
     installed: 'aaaaaaa', version: '0.1.0', available: true, latest: 'bbbbbbb', latestDate: '2026-10-14T10:00:00Z',
-    summary: 'Add something', url: 'https://github.com/diogobritodesign/tokenbar/compare/aaaaaaa...bbbbbbb'
+    summary: 'Add something', source: null, url: 'https://github.com/diogobritodesign/tokenbar/compare/aaaaaaa...bbbbbbb'
   });
   const before = calls;
   await checkForUpdate({ enabled: true, now: now + 3600e3, versionFile });
