@@ -229,7 +229,7 @@ divisão.
 - **Ícone de bandeja**: o menu do botão direito é desenhado por cada desktop; o
   painel do clique esquerdo é igual em todos. No X11 e em Wayland sem
   layer-shell ele abre como janela comum sem borda, posicionada pelo desktop.
-  Só foi testado com o host de bandeja do GNOME.
+  Testado no KDE Plasma 6 (num contêiner, onde o painel abre no canto superior direito com o gtk4-layer-shell) e no host de bandeja do GNOME; ainda não no Xfce nem no Cinnamon.
 
 ## Resolução de problemas
 

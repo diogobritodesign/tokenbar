@@ -15,17 +15,21 @@ import subprocess
 import sys
 import time
 
+import ctypes
 import gi
+
+# O gtk4-layer-shell (KDE e compositores wlroots: fixa o painel no canto) só
+# funciona se for carregado antes do GTK falar com o Wayland.
+try:
+    ctypes.CDLL('libgtk4-layer-shell.so.0', mode=ctypes.RTLD_GLOBAL)
+    gi.require_version('Gtk4LayerShell', '1.0')
+    from gi.repository import Gtk4LayerShell as LayerShell  # noqa: E402
+except (OSError, ImportError, ValueError):
+    LayerShell = None
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
-
-try:  # Em KDE e compositores wlroots, posiciona a janela no canto como um painel.
-    gi.require_version('Gtk4LayerShell', '1.0')
-    from gi.repository import Gtk4LayerShell as LayerShell  # noqa: E402
-except (ImportError, ValueError):
-    LayerShell = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -456,7 +460,8 @@ class PanelWindow:
         height = 900
         if monitors and monitors.get_n_items():
             height = monitors.get_item(0).get_geometry().height
-        scroller.set_max_content_height(max(300, height - 190))
+        # Cabeçalho, avisos e rodapé ficam fora da rolagem; sobra espaço para eles.
+        scroller.set_max_content_height(max(240, height - 330))
         scroller.set_propagate_natural_height(True)
         scroller.set_child(content)
         return scroller

@@ -247,7 +247,7 @@ split.
 - **Tray icon**: the right-click menu is drawn by each desktop; the panel opened
   by a left click looks the same everywhere. On X11 and on Wayland desktops
   without layer-shell it opens as a normal borderless window, placed by the
-  desktop. Tested against GNOME's tray host only.
+  desktop. Tested on KDE Plasma 6 (in a container, where the panel opens in the top-right corner with gtk4-layer-shell) and against GNOME's tray host; not yet on Xfce or Cinnamon.
 
 ## Troubleshooting
 
