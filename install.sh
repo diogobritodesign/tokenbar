@@ -43,6 +43,9 @@ if [[ $WANT_TRAY == 1 ]] && ! python3 -c 'import gi; gi.require_version("Gio", "
   echo "       Arch: sudo pacman -S python-gobject        openSUSE: sudo zypper install python3-gobject" >&2
   exit 1
 fi
+if [[ $WANT_TRAY == 1 ]] && ! python3 -c 'import gi; gi.require_version("Gtk", "4.0")' 2>/dev/null; then
+  echo "warning: GTK 4 for Python not found; clicking the tray icon will show a plain menu instead of the panel"
+fi
 command -v ss >/dev/null || echo "warning: 'ss' (iproute2) not found; Antigravity will not be read"
 command -v gh >/dev/null || echo "warning: 'gh' not found; GitHub Copilot will not be read"
 

@@ -116,14 +116,16 @@ histórico.
 No **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** e outros desktops com bandeja
 do sistema, o `./install.sh` instala um **ícone de bandeja** no lugar da
 extensão do GNOME: um anel da conta mais crítica, o percentual como texto (onde
-o desktop mostra texto) e um menu com todas as contas, o custo do dia,
-atualizar e sobre. Ele abre sozinho no login. No GNOME dá para adicionar também
+o desktop mostra texto). **O clique abre o mesmo painel da extensão do GNOME**
+(mesmos cartões, anéis, medidores, fonte e cores, com as configurações dentro);
+o botão direito mantém um menu simples. Ele abre sozinho no login. No GNOME dá para adicionar também
 com `./install.sh --tray` (precisa da extensão AppIndicator).
 
-![Menu do ícone de bandeja](docs/screenshots/tray.png)
+![Painel aberto pelo ícone de bandeja](docs/screenshots/tray.png)
 
 Ele fala o protocolo padrão de bandeja (StatusNotifierItem) pelo D-Bus usando
-só o PyGObject: sem GTK e sem biblioteca de AppIndicator. Precisa do Python 3
+PyGObject e desenha o painel com GTK 4 (sem GTK 4, o clique volta a abrir o
+menu). Precisa do Python 3
 com PyGObject (`python3-gobject` no Fedora/openSUSE, `python3-gi` no
 Debian/Ubuntu, `python-gobject` no Arch). Foi testado com o host de bandeja do
 GNOME; ainda não foi testado no próprio KDE, Xfce ou Cinnamon — relatos são
@@ -224,8 +226,9 @@ divisão.
 - Totais de tokens e custo existem só para o Claude.
 - A projeção "esgota em" não é calculada para cotas mensais.
 - Idiomas da interface: só português e inglês.
-- **Ícone de bandeja**: o menu é desenhado por cada desktop, então no KDE, Xfce
-  e outros ele tem a cara dos menus daquele desktop, não a do painel do GNOME.
+- **Ícone de bandeja**: o menu do botão direito é desenhado por cada desktop; o
+  painel do clique esquerdo é igual em todos. No X11 e em Wayland sem
+  layer-shell ele abre como janela comum sem borda, posicionada pelo desktop.
   Só foi testado com o host de bandeja do GNOME.
 
 ## Resolução de problemas
@@ -248,7 +251,7 @@ shell aninhado numa janela.
 ```sh
 npm test                    # 69 testes em Node + 10 em Python (bandeja)
 scripts/ui-test.sh          # 49 verificações num GNOME Shell headless de verdade
-scripts/tray-test.sh        # 15 verificações da bandeja pelo D-Bus, no mesmo esquema isolado
+scripts/tray-test.sh        # 18 verificações da bandeja e do painel pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS
 scripts/embedded-test.sh    # extensão empacotada rodando o próprio coletor em GJS, sem Node
 scripts/preview.sh --demo   # shell aninhado com dados de demonstração

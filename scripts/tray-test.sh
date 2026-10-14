@@ -37,7 +37,7 @@ gsettings set org.gnome.shell welcome-dialog-last-shown-version '99'
 gnome-shell --headless --unsafe-mode --wayland-display tokenbar-tray --virtual-monitor 1280x900 > "$WORK/shell.log" 2>&1 &
 SHELL_PID=$!
 sleep 10
-python3 -I "$SRC/tray/tokenbar_tray.py" > "$WORK/tray.log" 2>&1 &
+GTK_A11Y=none WAYLAND_DISPLAY=tokenbar-tray python3 -I "$SRC/tray/tokenbar_tray.py" > "$WORK/tray.log" 2>&1 &
 echo $! > "$WORK/tray.pid"
 sleep 3
 
@@ -62,6 +62,16 @@ contains "menu: conta com submenu de janelas" "$LAYOUT" "5h: 62% · reseta em"
 contains "menu: custo do dia" "$LAYOUT" "uso hoje: R\$"
 contains "menu: sobre com o autor" "$LAYOUT" "Site do autor (Diogo Brito)"
 check "o host mostra o ícone na barra" "$(ev "Object.keys(Main.panel.statusArea).some(k => k.includes('$NAME'))")" "true"
+
+# Clique esquerdo: abre a janela com o mesmo design do painel do GNOME.
+check "o clique abre o painel, não o menu" "$(get ItemIsMenu)" "(<false>,)"
+gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 1200 10 >/dev/null; sleep 2
+check "a janela do painel aparece" "$(ev "global.display.list_all_windows().some(w => w.get_title() === 'TokenBar')")" "true"
+if [[ -n "$SHOTS" ]]; then
+  gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.Screenshot false false "$SHOTS/tray-panel.png" >/dev/null
+fi
+gdbus call --session --dest "$NAME" --object-path /StatusNotifierItem --method org.kde.StatusNotifierItem.Activate 1200 10 >/dev/null; sleep 1
+check "um segundo clique fecha a janela" "$(ev "global.display.list_all_windows().some(w => w.get_title() === 'TokenBar' && !w.minimized && w.showing_on_its_workspace())")" "false"
 
 # Muda o estado e confere que a bandeja acompanha sem reiniciar.
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"

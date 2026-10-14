@@ -449,6 +449,7 @@ class Tray:
         self.view = None
         self.menu_root, self.menu_items = None, {}
         self.menu_ids = MenuIds()
+        self.panel = None  # janela GTK 4, criada no primeiro clique; False = indisponível
         self.item_info = Gio.DBusNodeInfo.new_for_xml(ITEM_XML).interfaces[0]
         self.menu_info = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
         self.actions = {
@@ -476,6 +477,8 @@ class Tray:
                                         GLib.Variant('(a(ia{sv})a(ias))', (updated, [])))
             self.connection.emit_signal(None, '/MenuBar', 'com.canonical.dbusmenu', 'LayoutUpdated',
                                         GLib.Variant('(ui)', (self.revision, 0)))
+        if self.panel:
+            self.panel.reload_if_visible()
         return True
 
     def label_guide(self):
@@ -520,7 +523,8 @@ class Tray:
         if name == 'ToolTip':
             return GLib.Variant('(sa(iiay)ss)', ('', [], 'TokenBar', view.tooltip()))
         if name == 'ItemIsMenu':
-            return GLib.Variant('b', True)
+            # Com a janela do painel disponível, o clique a abre; o menu fica no botão direito.
+            return GLib.Variant('b', self.panel_window() is None)
         if name == 'Menu':
             return GLib.Variant('o', '/MenuBar')
         if name == 'XAyatanaLabel':
@@ -530,8 +534,23 @@ class Tray:
         return None
 
     def item_method(self, _conn, _sender, _path, _iface, method, _params, invocation):
-        # Clique: o host abre o menu sozinho (ItemIsMenu); aqui só respondemos.
+        # Clique: abre o mesmo painel do GNOME; sem GTK 4 o host mostra o menu.
+        if method == 'Activate' and self.panel_window() is not None:
+            GLib.idle_add(lambda: (self.panel.toggle(), False)[1])
         invocation.return_value(None)
+
+    def panel_window(self):
+        if self.panel is False:
+            return None
+        if self.panel is None:
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import tokenbar_window
+                self.panel = tokenbar_window.PanelWindow(self.state_path, self.config_path, self.collector)
+            except Exception:  # GTK 4 ausente ou sem tela: fica só o menu nativo.
+                self.panel = False
+                return None
+        return self.panel
 
     # ---- D-Bus: menu
 

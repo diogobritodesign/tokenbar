@@ -9,3 +9,4 @@ collector/VERSION.json
 
 # Pacote gerado pelo scripts/pack-extension.sh
 dist/
+__pycache__/

@@ -117,15 +117,16 @@ the font, the cache and the history.
 On **KDE Plasma, Xfce, Cinnamon, MATE, Budgie** and other desktops with a
 system tray, `./install.sh` installs a **tray icon** instead of the GNOME
 extension: a ring for the most critical account, its percentage as a label
-(where the desktop supports labels) and a menu with every account, today's
-cost, refresh and about. It starts at login. On GNOME you can add it too with
+(where the desktop supports labels). **Clicking it opens the same panel as the
+GNOME extension** (same cards, rings, meters, font and colours, with settings
+inside); right-click keeps a plain menu. It starts at login. On GNOME you can add it too with
 `./install.sh --tray` (it needs the AppIndicator extension).
 
-![Tray icon menu](docs/screenshots/tray.png)
+![Panel opened from the tray icon](docs/screenshots/tray.png)
 
 It speaks the standard tray protocol (StatusNotifierItem) over D-Bus with
-PyGObject only: no GTK, no AppIndicator library. Python 3 with PyGObject is
-needed (`python3-gobject` on Fedora/openSUSE, `python3-gi` on Debian/Ubuntu,
+PyGObject, and draws the panel with GTK 4 (if GTK 4 is missing, the click
+falls back to the menu). Python 3 with PyGObject is needed (`python3-gobject` on Fedora/openSUSE, `python3-gi` on Debian/Ubuntu,
 `python-gobject` on Arch). It has been tested against GNOME's tray host; it
 has not yet been tested on KDE, Xfce or Cinnamon themselves, so reports are
 welcome.
@@ -243,9 +244,10 @@ split.
 - Token/cost totals exist for Claude only.
 - The "runs out in" projection for monthly quotas is not computed.
 - Interface languages: English and Portuguese only.
-- **Tray icon**: the menu is drawn by each desktop, so on KDE, Xfce and others
-  it looks like that desktop's menus, not like the GNOME panel. It has been
-  tested against GNOME's tray host only.
+- **Tray icon**: the right-click menu is drawn by each desktop; the panel opened
+  by a left click looks the same everywhere. On X11 and on Wayland desktops
+  without layer-shell it opens as a normal borderless window, placed by the
+  desktop. Tested against GNOME's tray host only.
 
 ## Troubleshooting
 
@@ -266,7 +268,7 @@ without logging out, `scripts/preview.sh` opens a nested shell window.
 ```sh
 npm test                    # 69 Node tests + 10 Python tests (tray)
 scripts/ui-test.sh          # 49 checks against a real headless GNOME Shell
-scripts/tray-test.sh        # 15 checks of the tray icon over D-Bus, same isolated setup
+scripts/tray-test.sh        # 18 checks of the tray icon and its panel over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity
 scripts/embedded-test.sh    # packaged extension running its own GJS collector, no Node
 scripts/preview.sh --demo   # nested shell with demo data
