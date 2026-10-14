@@ -69,9 +69,10 @@
 
 .tokenbar-surface {
   border-radius: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background-color: rgba(15, 15, 16, 0.7);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  /* Sem box-shadow: o menu do GNOME corta tudo o que passa da área dele, e a
+     sombra aparecia como um retângulo escuro em volta do painel. */
 }
 
 .tokenbar-surface.tokenbar-surface-solid {
