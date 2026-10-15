@@ -6,6 +6,7 @@ import { platform } from './platform/index.js';
 export const MESSAGES = {
   'label.week': ['Semana', 'Week'],
   'label.plan': ['Plano', 'Plan'],
+  'label.onDemand': ['Extra', 'On-demand'],
   'label.code': ['Código', 'Code'],
   'name.claudeMain': ['Claude (principal)', 'Claude (main)'],
   'name.cursorIde': ['Cursor (IDE)', 'Cursor (IDE)'],

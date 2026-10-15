@@ -6,7 +6,12 @@ import { join } from './util/path.js';
 // Pastas onde as ferramentas gravam as conversas enquanto você usa.
 export async function activityPaths(homeDir = home()) {
   const accounts = await discoverClaudeAccounts(homeDir);
-  return [...accounts.map((account) => join(account.dir, 'projects')), join(homeDir, '.codex', 'sessions')];
+  return [
+    ...accounts.map((account) => join(account.dir, 'projects')),
+    join(homeDir, '.codex', 'sessions'),
+    // Transcripts do agente do Cursor (disparo de coleta após uso).
+    join(homeDir, '.cursor', 'projects')
+  ];
 }
 
 // Agenda a próxima coleta: no intervalo normal quando nada acontece, ou logo

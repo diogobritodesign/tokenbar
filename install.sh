@@ -23,15 +23,24 @@ UNIT_DIR="$HOME/.config/systemd/user"
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/$UUID"
 
 NODE="$(command -v node || true)"
-if [[ -z "$NODE" ]]; then
-  echo "error: node not found in PATH" >&2
+GJS="$(command -v gjs || true)"
+# Preferência: Node (serviço systemd). Sem Node, no GNOME dá para usar o coletor
+# embutido em GJS; em outros desktops ainda precisamos do Node para o serviço.
+if [[ -n "$NODE" ]]; then
+  if ! "$NODE" -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)'; then
+    echo "error: Node.js 20 or newer is required (found: $("$NODE" --version))" >&2
+    exit 1
+  fi
+elif [[ $WANT_EXTENSION == 1 && -n "$GJS" ]]; then
+  echo "note: Node.js not found; the GNOME extension will run the embedded GJS collector"
+  NODE=""
+else
+  echo "error: node not found in PATH (needed for the collector service outside GNOME-only installs)" >&2
   exit 1
 fi
-if ! "$NODE" -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)'; then
-  echo "error: Node.js 20 or newer is required (found: $("$NODE" --version))" >&2
-  exit 1
+if [[ -n "$NODE" ]]; then
+  command -v systemctl >/dev/null || { echo "error: systemctl not found (systemd user services are required)" >&2; exit 1; }
 fi
-command -v systemctl >/dev/null || { echo "error: systemctl not found (systemd user services are required)" >&2; exit 1; }
 if [[ $WANT_EXTENSION == 1 ]]; then
   for tool in glib-compile-schemas gnome-extensions gsettings; do
     command -v "$tool" >/dev/null || { echo "error: $tool not found" >&2; exit 1; }
@@ -50,31 +59,42 @@ command -v ss >/dev/null || echo "warning: 'ss' (iproute2) not found; Antigravit
 command -v gh >/dev/null || echo "warning: 'gh' not found; GitHub Copilot will not be read"
 
 echo "==> Collector"
-mkdir -p "$APP_DIR" "$HOME/.local/bin" "$UNIT_DIR"
+mkdir -p "$APP_DIR" "$HOME/.local/bin"
 install -d -m 700 "$HOME/.cache/tokenbar"
 rm -rf "$APP_DIR/collector"
 cp -r "$SRC/collector" "$APP_DIR/collector"
 # Qual versão foi instalada, para o aviso de atualização comparar com o GitHub.
 COMMIT="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
-VERSION="$("$NODE" -p "require('$SRC/package.json').version")"
+if [[ -n "$NODE" ]]; then
+  VERSION="$("$NODE" -p "require('$SRC/package.json').version")"
+else
+  VERSION="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SRC/package.json" | head -1)"
+fi
 printf '{"version":"%s","commit":"%s","installedAt":"%s","source":"%s"}\n' "$VERSION" "$COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SRC" \
   > "$APP_DIR/collector/VERSION.json"
 
-# O caminho absoluto do node e o PATH deste terminal ficam gravados aqui porque
-# o PATH do systemd --user costuma ser mais curto (nvm, fnm, ~/.local/bin), e
-# o coletor precisa achar `gh` e `ss`.
-cat > "$BIN" <<EOF
+if [[ -n "$NODE" ]]; then
+  mkdir -p "$UNIT_DIR"
+  # O caminho absoluto do node e o PATH deste terminal ficam gravados aqui porque
+  # o PATH do systemd --user costuma ser mais curto (nvm, fnm, ~/.local/bin), e
+  # o coletor precisa achar `gh` e `ss`.
+  cat > "$BIN" <<EOF
 #!/bin/sh
 PATH="$PATH"
 export PATH
 exec "$NODE" "$APP_DIR/collector/bin/tokenbar-collector.js" "\$@"
 EOF
-chmod 755 "$BIN"
+  chmod 755 "$BIN"
 
-install -m 644 "$SRC/systemd/tokenbar-collector.service" "$UNIT_DIR/tokenbar-collector.service"
-systemctl --user daemon-reload
-systemctl --user enable tokenbar-collector.service >/dev/null
-systemctl --user restart tokenbar-collector.service
+  install -m 644 "$SRC/systemd/tokenbar-collector.service" "$UNIT_DIR/tokenbar-collector.service"
+  systemctl --user daemon-reload
+  systemctl --user enable tokenbar-collector.service >/dev/null
+  systemctl --user restart tokenbar-collector.service
+else
+  echo "collector service skipped (no Node); the GNOME extension embeds its own collector"
+fi
+command -v python3 >/dev/null || echo "warning: python3 not found; Cursor IDE login will not be read"
+command -v notify-send >/dev/null || echo "warning: notify-send not found; tray desktop notifications will be silent"
 
 echo "==> Font"
 FONT_DIR="$HOME/.local/share/fonts/tokenbar"

@@ -50,6 +50,14 @@ STRINGS = {
     'site': ('Site do autor ({name})', "Author's website ({name})"),
     'code': ('Código no GitHub', 'Code on GitHub'),
     'quit': ('Sair', 'Quit'),
+    'notify_update': ('TokenBar: atualização disponível', 'TokenBar: update available'),
+    'notify_login': ('{account}: login expirado', '{account}: login expired'),
+    'notify_over': ('{name} em {pct}%', '{name} at {pct}%'),
+    'notify_over_body': ('acima do limite vermelho ({crit}%)', 'above the red threshold ({crit}%)'),
+    'notify_freed': ('{name} liberado', '{name} is available again'),
+    'notify_goal': ('Meta de gasto do dia atingida', 'Daily spending goal reached'),
+    'notify_goal_month': ('Meta de gasto dos 30 dias atingida', '30-day spending goal reached'),
+    'notify_goal_body': ('{spent} de {goal}, a preço de API.', '{spent} of {goal}, at API prices.'),
 }
 
 # ---------------------------------------------------------------- textos
@@ -143,15 +151,21 @@ def level_of(provider, warn=60, crit=85):
     return 'ok'
 
 
-def load_options(config_path):
-    """Opções da bandeja: o bloco "bar" do config.json do coletor."""
+def load_raw_config(config_path):
     try:
         with open(config_path, encoding='utf-8') as file:
             raw = json.load(file)
     except (OSError, ValueError):
-        raw = {}
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def load_options(config_path):
+    """Opções da bandeja: o bloco "bar" do config.json do coletor."""
+    raw = load_raw_config(config_path)
     bar = raw.get('bar') if isinstance(raw.get('bar'), dict) else {}
     language = raw.get('language') if raw.get('language') in ('pt', 'en') else system_language()
+    hidden = bar.get('hiddenProviders') if isinstance(bar.get('hiddenProviders'), list) else []
     return {
         'language': language,
         'show_remaining': bar.get('showRemaining') is not False,
@@ -159,8 +173,126 @@ def load_options(config_path):
         'crit': int(bar.get('crit', 85)) if isinstance(bar.get('crit', 85), (int, float)) else 85,
         'currency': bar.get('currency') if bar.get('currency') in ('brl', 'usd') else ('brl' if language == 'pt' else 'usd'),
         'label': bar.get('label') if bar.get('label') in ('critical', 'all', 'none') else 'critical',
+        'hidden_providers': [str(item) for item in hidden],
         'dock': raw.get('dock') is True,
+        'notifications': raw.get('notifications') is not False,
+        'update_check': raw.get('updateCheck') is not False,
+        'budget_daily': int(raw.get('budgetDaily', 0)) if isinstance(raw.get('budgetDaily', 0), (int, float)) else 0,
+        'budget_monthly': int(raw.get('budgetMonthly', 0)) if isinstance(raw.get('budgetMonthly', 0), (int, float)) else 0,
     }
+
+
+def desktop_notify(title, body):
+    """Notificação do desktop via notify-send (libnotify), se existir."""
+    try:
+        subprocess.Popen(
+            ['notify-send', '--app-name=TokenBar', '--icon=tokenbar', str(title), str(body or '')],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        pass
+
+
+class AlertTracker:
+    """Mesma lógica de avisos da extensão do GNOME, para a bandeja."""
+
+    def __init__(self):
+        self.stamp = None
+        self.statuses = {}
+        self.windows = {}
+        self.budget_day = None
+        self.budget_month = None
+        self.update_notified = None
+
+    def check(self, state, options, text):
+        if not state or state.get('updatedAt') == self.stamp:
+            return
+        first = self.stamp is None
+        self.stamp = state.get('updatedAt')
+        enabled = options.get('notifications') is not False
+        crit = max(options.get('crit', 85), options.get('warn', 60))
+        providers = [p for p in (state.get('providers') or []) if isinstance(p, dict) and p.get('id')]
+
+        update = state.get('update') if isinstance(state.get('update'), dict) else {}
+        latest = update.get('latest')
+        if enabled and update.get('available') and latest and self.update_notified != latest:
+            self.update_notified = latest
+            desktop_notify(text('notify_update'), ' · '.join(filter(None, [latest, update.get('summary')])))
+
+        for provider in providers:
+            before = self.statuses.get(provider['id'])
+            self.statuses[provider['id']] = provider.get('status')
+            if not first and enabled and before and before != 'unauthorized' and provider.get('status') == 'unauthorized':
+                desktop_notify(
+                    text('notify_login', account=provider.get('label') or provider['id']),
+                    str(provider.get('error') or ''),
+                )
+
+        rate = (state.get('fx') or {}).get('usdBrl')
+        brl = options.get('currency') == 'brl' and isinstance(rate, (int, float)) and rate > 0
+        symbol = 'R$' if brl else ('US$' if text.language == 'pt' else '$')
+
+        def local_amount(usd):
+            return usd * rate if brl else usd
+
+        spent_today = sum(p.get('costTodayUsd') or 0 for p in providers if isinstance(p.get('costTodayUsd'), (int, float)))
+        day = datetime.now().strftime('%Y-%m-%d')
+        budget_daily = options.get('budget_daily') or 0
+        if budget_daily > 0 and local_amount(spent_today) >= budget_daily and self.budget_day != day:
+            self.budget_day = day
+            if not first and enabled:
+                desktop_notify(
+                    text('notify_goal'),
+                    text(
+                        'notify_goal_body',
+                        spent=f'{symbol} {text.number(local_amount(spent_today), 2)}',
+                        goal=f'{symbol} {text.number(budget_daily, 2)}',
+                    ),
+                )
+
+        budget_monthly = options.get('budget_monthly') or 0
+        month_key = datetime.now().strftime('%Y-%m')
+        month_usd = ((state.get('usage') or {}).get('last30') or {}).get('costUsd')
+        if (
+            budget_monthly > 0
+            and isinstance(month_usd, (int, float))
+            and local_amount(month_usd) >= budget_monthly
+            and self.budget_month != month_key
+        ):
+            self.budget_month = month_key
+            if not first and enabled:
+                desktop_notify(
+                    text('notify_goal_month'),
+                    text(
+                        'notify_goal_body',
+                        spent=f'{symbol} {text.number(local_amount(month_usd), 2)}',
+                        goal=f'{symbol} {text.number(budget_monthly, 2)}',
+                    ),
+                )
+
+        for provider in providers:
+            if provider.get('status') != 'ok':
+                continue
+            for window in provider.get('windows') or []:
+                if not isinstance(window, dict) or not isinstance(window.get('usedPct'), (int, float)):
+                    continue
+                key = f"{provider['id']}/{window.get('group') or ''}/{window.get('label') or window.get('kind')}"
+                before = self.windows.get(key)
+                over = window['usedPct'] > crit
+                self.windows[key] = {'over': over, 'pct': window['usedPct']}
+                if first or not enabled or not before or before['over'] == over:
+                    continue
+                name = ' · '.join(
+                    str(part) for part in (provider.get('label') or provider['id'], window.get('group'), window.get('label')) if part
+                )
+                if over:
+                    desktop_notify(
+                        text('notify_over', name=name, pct=window['usedPct']),
+                        text('notify_over_body', crit=crit),
+                    )
+                elif window['usedPct'] < before['pct']:
+                    desktop_notify(text('notify_freed', name=name), f"{window['usedPct']}%")
 
 
 def load_state(state_path):
@@ -178,6 +310,10 @@ class View:
     def __init__(self, state, options, now=None):
         self.state = state
         self.options = options
+        hidden = set(options.get('hidden_providers') or [])
+        if state and isinstance(state.get('providers'), list) and hidden:
+            state = {**state, 'providers': [p for p in state['providers'] if p.get('id') not in hidden]}
+            self.state = state
         self.now = time.time() if now is None else now
         self.t = Text(options['language'])
         providers = [p for p in (state or {}).get('providers', []) if isinstance(p, dict) and p.get('id')]
@@ -517,6 +653,7 @@ class Tray:
         self.number_in_icon = 'GNOME' not in os.environ.get('XDG_CURRENT_DESKTOP', '').upper()
         self.dock_panel = None  # janela do modo "ícone na dock"
         self.panel = None  # janela GTK 4, criada no primeiro clique; False = indisponível
+        self.alerts = AlertTracker()
         self.item_info = Gio.DBusNodeInfo.new_for_xml(ITEM_XML).interfaces[0]
         self.menu_info = Gio.DBusNodeInfo.new_for_xml(MENU_XML).interfaces[0]
         self.actions = {
@@ -531,7 +668,10 @@ class Tray:
     # ---- dados
 
     def reload(self):
-        self.view = View(load_state(self.state_path), load_options(self.config_path))
+        options = load_options(self.config_path)
+        state = load_state(self.state_path)
+        self.view = View(state, options)
+        self.alerts.check(state, options, self.view.t)
         self.menu_root, self.menu_items = build_menu(self.view, self.actions, self.menu_ids)
         self.revision += 1
         if self.connection:

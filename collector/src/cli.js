@@ -21,7 +21,13 @@ export async function run(args, io) {
   if (args.includes('--waybar') || args.includes('--polybar')) {
     const state = await readJson(stateFile());
     const config = await loadConfig();
-    const options = { showRemaining: config.bar.showRemaining, warn: config.bar.warn, crit: config.bar.crit };
+    const options = {
+      showRemaining: config.bar.showRemaining,
+      warn: config.bar.warn,
+      crit: config.bar.crit,
+      label: config.bar.label,
+      hiddenProviders: config.bar.hiddenProviders
+    };
     io.print(args.includes('--waybar') ? JSON.stringify(waybarOutput(state, options)) : polybarOutput(state, options));
     return 0;
   }

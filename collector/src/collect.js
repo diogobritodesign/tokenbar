@@ -64,14 +64,18 @@ export async function loadConfig() {
     language: LANGUAGES.includes(raw.language) ? raw.language : null,
     // Checagem diária de versão nova no GitHub; ligada por padrão.
     updateCheck: raw.updateCheck !== false,
-    // Opções de exibição para a bandeja e as barras fora do GNOME (no GNOME,
-    // a extensão tem as próprias, no GSettings).
+    notifications: raw.notifications !== false,
+    budgetDaily: clampInt(raw.budgetDaily, 0, 100000, 0),
+    budgetMonthly: clampInt(raw.budgetMonthly, 0, 1000000, 0),
+    // Opções de exibição para a bandeja e as barras fora do GNOME.
+    // No GNOME a extensão espelha o GSettings aqui a cada mudança.
     bar: {
       showRemaining: raw.bar?.showRemaining !== false,
       warn: clampInt(raw.bar?.warn, 1, 99, 60),
       crit: clampInt(raw.bar?.crit, 2, 100, 85),
       currency: ['brl', 'usd'].includes(raw.bar?.currency) ? raw.bar.currency : null,
-      label: ['critical', 'all', 'none'].includes(raw.bar?.label) ? raw.bar.label : 'critical'
+      label: ['critical', 'all', 'none'].includes(raw.bar?.label) ? raw.bar.label : 'critical',
+      hiddenProviders: Array.isArray(raw.bar?.hiddenProviders) ? raw.bar.hiddenProviders.map(String) : []
     }
   };
 }

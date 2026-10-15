@@ -20,3 +20,29 @@ jobs:
       - run: npm test
       - name: Shell scripts parse
         run: bash -n install.sh uninstall.sh scripts/*.sh
+
+  gjs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y gjs libgjs-dev gir1.2-soup-3.0
+      - name: GJS platform + Node/GJS parity
+        run: |
+          if command -v gjs >/dev/null; then
+            bash scripts/gjs-test.sh
+            bash scripts/parity-test.sh
+          else
+            echo "gjs not available; skipping"
+          fi
+
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y zip
+      - name: Pack extension zip
+        run: bash scripts/pack-extension.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tokenbar-extension
+          path: dist/tokenbar@tokenbar.shell-extension.zip

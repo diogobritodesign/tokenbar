@@ -58,7 +58,10 @@ export function formatReset(resetsAt, now) {
 export function projectedExhaustion(window, now) {
     const reset = Date.parse(window.resetsAt);
     const minutes = Number(window.windowMinutes) ||
-        (window.kind === 'session' ? 300 : String(window.kind).startsWith('weekly') ? 10080 : 0);
+        (window.kind === 'session' ? 300
+            : String(window.kind).startsWith('weekly') ? 10080
+                : window.kind === 'monthly' ? 30 * 24 * 60
+                    : 0);
     const used = window.usedPct;
     if (!Number.isFinite(reset) || !minutes || used < PACE_MIN_PCT || used >= 100)
         return null;

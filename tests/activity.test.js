@@ -54,7 +54,11 @@ test('observa as pastas de conversa e só reage a arquivos .jsonl', async (t) =>
   const home = await tempDir(t);
   await fs.mkdir(path.join(home, '.claude', 'projects', 'p'), { recursive: true });
   const paths = await activityPaths(home);
-  assert.deepEqual(paths, [path.join(home, '.claude', 'projects'), path.join(home, '.codex', 'sessions')]);
+  assert.deepEqual(paths, [
+    path.join(home, '.claude', 'projects'),
+    path.join(home, '.codex', 'sessions'),
+    path.join(home, '.cursor', 'projects')
+  ]);
 
   let hits = 0;
   const stop = watchActivity(paths, () => { hits += 1; });

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { messageCostUsd } from '../collector/src/pricing.js';
+import { messageCostUsd, PRICING_CHECKED_AT } from '../collector/src/pricing.js';
+
+test('a tabela de preços foi conferida há menos de 120 dias', () => {
+  const checked = Date.parse(`${PRICING_CHECKED_AT}T00:00:00Z`);
+  assert.ok(Number.isFinite(checked));
+  assert.ok(Date.now() - checked < 120 * 24 * 60 * 60 * 1000, `atualize pricing.js (última conferência: ${PRICING_CHECKED_AT})`);
+});
 
 const none = { input: 0, output: 0, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 };
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);

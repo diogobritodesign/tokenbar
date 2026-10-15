@@ -4,8 +4,10 @@ import { join } from '../util/path.js';
 import { isDirectory } from '../files.js';
 import { CollectError, fetchJson } from '../http.js';
 import { t } from '../i18n.js';
+import { codexDailyHistory, codexUsageToday } from '../usage/codexTranscripts.js';
 
 const codexDir = () => join(home(), '.codex');
+const sessionsDir = () => join(codexDir(), 'sessions');
 const USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 const hint = () => t('codex.hint');
 const SESSION_MAX_SECONDS = 6 * 60 * 60;
@@ -86,7 +88,7 @@ export const codexProviders = [
     name: 'Codex / ChatGPT',
     exists: () => isDirectory(codexDir()),
     fetchLimits,
-    // Só limites por enquanto; os tokens das sessões locais não são somados.
-    usageToday: async () => null
+    usageToday: (usageCache, now) => codexUsageToday(sessionsDir(), usageCache, now),
+    dailyHistory: (sinceMs) => codexDailyHistory(sessionsDir(), sinceMs)
   }
 ];

@@ -50,6 +50,7 @@ export default class TokenBarExtension extends Extension {
         this._alerts = new Map();
         this._statuses = new Map();
         this._budgetDay = null;
+        this._budgetMonth = null;
         this._alertStamp = null;
 
         Main.wm.addKeybinding('toggle-panel', this._settings,
@@ -65,6 +66,15 @@ export default class TokenBarExtension extends Extension {
             'changed::collector-interval', () => this._writeCollectorConfig(),
             'changed::update-check', () => this._writeCollectorConfig(),
             'changed::disabled-providers', () => this._writeCollectorConfig(),
+            'changed::bar-hidden-providers', () => this._writeCollectorConfig(),
+            'changed::show-remaining', () => this._writeCollectorConfig(),
+            'changed::warn-threshold', () => this._writeCollectorConfig(),
+            'changed::crit-threshold', () => this._writeCollectorConfig(),
+            'changed::currency', () => this._writeCollectorConfig(),
+            'changed::bar-mode', () => this._writeCollectorConfig(),
+            'changed::notifications', () => this._writeCollectorConfig(),
+            'changed::budget-daily', () => this._writeCollectorConfig(),
+            'changed::budget-monthly', () => this._writeCollectorConfig(),
             this);
         this._applyLanguage(false);
         this._writeCollectorConfig();
@@ -164,20 +174,32 @@ export default class TokenBarExtension extends Extension {
                 Main.notify(t('notify.loginExpired', {account: provider.label ?? provider.id}), String(provider.error ?? ''));
         }
 
-        // Meta diária: um aviso por dia, ao passar de 100%.
-        const budget = this._settings.get_int('budget-daily');
+        // Meta diária / mensal: um aviso por período, ao passar de 100%.
         const rate = Number(state.fx?.usdBrl);
         const brl = this._settings.get_string('currency') === 'brl' && Number.isFinite(rate) && rate > 0;
-        const spentUsd = providers.reduce((sum, p) => sum + (Number.isFinite(p.costTodayUsd) ? p.costTodayUsd : 0), 0);
-        const spent = brl ? spentUsd * rate : spentUsd;
+        const symbol = brl ? 'R$' : getLanguage() === 'pt' ? 'US$' : '$';
+        const toLocal = usd => (brl ? usd * rate : usd);
+        const spentTodayUsd = providers.reduce((sum, p) => sum + (Number.isFinite(p.costTodayUsd) ? p.costTodayUsd : 0), 0);
         const day = new Date().toDateString();
-        if (budget > 0 && spent >= budget && this._budgetDay !== day) {
+        const budgetDaily = this._settings.get_int('budget-daily');
+        if (budgetDaily > 0 && toLocal(spentTodayUsd) >= budgetDaily && this._budgetDay !== day) {
             this._budgetDay = day;
             if (!first && enabled) {
-                const symbol = brl ? 'R$' : getLanguage() === 'pt' ? 'US$' : '$';
                 Main.notify(t('notify.goalHit'), t('notify.goalBody', {
-                    spent: `${symbol} ${formatAmount(spent)}`,
-                    goal: `${symbol} ${formatAmount(budget)}`,
+                    spent: `${symbol} ${formatAmount(toLocal(spentTodayUsd))}`,
+                    goal: `${symbol} ${formatAmount(budgetDaily)}`,
+                }));
+            }
+        }
+        const budgetMonthly = this._settings.get_int('budget-monthly');
+        const monthKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
+        const monthUsd = Number(state.usage?.last30?.costUsd);
+        if (budgetMonthly > 0 && Number.isFinite(monthUsd) && toLocal(monthUsd) >= budgetMonthly && this._budgetMonth !== monthKey) {
+            this._budgetMonth = monthKey;
+            if (!first && enabled) {
+                Main.notify(t('notify.goalHitMonth'), t('notify.goalBody', {
+                    spent: `${symbol} ${formatAmount(toLocal(monthUsd))}`,
+                    goal: `${symbol} ${formatAmount(budgetMonthly)}`,
                 }));
             }
         }
@@ -208,12 +230,26 @@ export default class TokenBarExtension extends Extension {
     // espelhados em ~/.config/tokenbar/config.json, que ele relê a cada ciclo.
     async _writeCollectorConfig() {
         const dir = GLib.build_filenamev([GLib.get_user_config_dir(), 'tokenbar']);
+        // bar-mode da barra do GNOME → label da bandeja/Waybar (critical/all/none).
+        const barMode = this._settings.get_string('bar-mode');
+        const label = barMode === 'critical' ? 'critical' : barMode === 'dots' ? 'none' : 'all';
         const config = {
             intervalSec: this._settings.get_int('collector-interval'),
             disabledProviders: this._settings.get_strv('disabled-providers'),
             // O coletor escreve erros e rótulos no mesmo idioma da interface.
             language: getLanguage(),
             updateCheck: this._settings.get_boolean('update-check'),
+            notifications: this._settings.get_boolean('notifications'),
+            budgetDaily: this._settings.get_int('budget-daily'),
+            budgetMonthly: this._settings.get_int('budget-monthly'),
+            bar: {
+                showRemaining: this._settings.get_boolean('show-remaining'),
+                warn: this._settings.get_int('warn-threshold'),
+                crit: this._settings.get_int('crit-threshold'),
+                currency: this._settings.get_string('currency'),
+                label,
+                hiddenProviders: this._settings.get_strv('bar-hidden-providers'),
+            },
         };
         try {
             GLib.mkdir_with_parents(dir, 0o700);

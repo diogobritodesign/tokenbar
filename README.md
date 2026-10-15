@@ -76,7 +76,7 @@ the installer).
 | Bar label | Tool | Where the data comes from | Notes |
 | --- | --- | --- | --- |
 | `CLD`, `CLD2`, `CLD3`… | Claude Code | `~/.claude` and any `~/.claude-<name>` (the ones you use with `CLAUDE_CONFIG_DIR`) | No fixed limit on how many accounts: every folder found is listed. Limits from Anthropic's usage endpoint with your existing login; tokens and cost from local transcripts. |
-| `OAI` | Codex / ChatGPT | `~/.codex/auth.json` | Limits only. |
+| `OAI` | Codex / ChatGPT | `~/.codex/auth.json` and `~/.codex/sessions` | Limits from the ChatGPT API; tokens and estimated cost from local rollouts. |
 | `CUR`, `CUR2`… | Cursor | IDE login in `~/.config/Cursor` (and `~/.config/Cursor-<name>`), and/or the CLI file `~/.config/cursor/auth.json` | Plan-cycle usage from Cursor's dashboard API with the login already on disk. Same account in IDE and CLI is shown once; different accounts appear as separate cards. Needs `python3` to read the IDE database. |
 | `AG` | Antigravity | The language server Antigravity itself runs on `127.0.0.1` | Works while the Antigravity IDE is open; otherwise shows the last known value. |
 | `GH` | GitHub Copilot | The official `gh` CLI (`gh api`) | Monthly quotas. Needs `gh auth login`. |
@@ -135,8 +135,9 @@ meant for extensions.gnome.org. Install it locally with
 out and back in. (The Geist Mono font is not bundled in this mode; the
 interface falls back to another monospace font.)
 
-`./uninstall.sh` removes everything: the service, the extension, its settings,
-the font, the cache and the history.
+`./uninstall.sh` removes everything: the service, the extension, settings, font,
+cache and history. Use `./uninstall.sh --keep-data` to keep config, cache and
+history.
 
 ## Other desktops
 
@@ -271,14 +272,12 @@ split.
   logging in on its own.
 - **No Claude reset credits.** Anthropic only returns them to Claude Code
   itself.
-- **Codex**: limits only (no local token totals yet), and the success path has
-  had little real-world testing.
-- **Cursor**: limits only (no local token totals). The usage endpoint is the
-  same undocumented dashboard API the Cursor website uses; it can change
-  without notice. Reading the IDE login needs `python3`.
-- Token/cost totals exist for Claude only.
-- The "runs out in" projection for monthly quotas is not computed.
-- Interface languages: English and Portuguese only.
+- **Cursor**: the usage endpoint is the same undocumented dashboard API the
+  Cursor website uses; it can change without notice. Reading the IDE login
+  needs `python3`. Local Cursor token totals are not counted yet (plan-cycle
+  limits only).
+- Interface languages: English and Portuguese only (translation contributions
+  welcome).
 - **Tray icon**: the right-click menu is drawn by each desktop; the panel opened
   by a left click looks the same everywhere and opens next to the icon (on
   Wayland this needs gtk4-layer-shell; without it the desktop places the
@@ -308,7 +307,7 @@ whether a logout is needed. To try panel changes without logging out,
 ## Development
 
 ```sh
-npm test                    # 72 Node tests + 11 Python tests (tray)
+npm test                    # 74 Node tests + 11 Python tests (tray)
 scripts/ui-test.sh          # 58 checks against a real headless GNOME Shell
 scripts/tray-test.sh        # 22 checks of the tray icon, its panel and the dock mode over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity

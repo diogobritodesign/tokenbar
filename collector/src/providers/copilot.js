@@ -45,6 +45,7 @@ export function mapWindows(data) {
     windows.push({
       kind: 'monthly',
       label: label(),
+      windowMinutes: 30 * 24 * 60,
       usedPct: Math.round(Math.min(Math.max(100 - remaining, 0), 100)),
       resetsAt
     });

@@ -66,9 +66,15 @@ test('projeção pela média da janela: só quando o limite acabaria antes do re
   assert.equal(projectedExhaustion({ ...fast, usedPct: 3 }, NOW), null);
   assert.equal(projectedExhaustion({ ...fast, usedPct: 30, resetsAt: iso(NOW + 295 * MIN) }, NOW), null);
   assert.equal(projectedExhaustion({ ...fast, resetsAt: null }, NOW), null);
-  // Sem windowMinutes, a duração vem do tipo da janela
+  // Sem windowMinutes, a duração vem do tipo da janela (mensal = 30 dias).
   assert.ok(projectedExhaustion({ kind: 'session', usedPct: 70, resetsAt: iso(NOW + 2 * HOUR) }, NOW) > NOW);
-  assert.equal(projectedExhaustion({ kind: 'monthly', usedPct: 70, resetsAt: iso(NOW + 2 * HOUR) }, NOW), null);
+  const monthly = {
+    kind: 'monthly',
+    usedPct: 70,
+    resetsAt: iso(NOW + 10 * 24 * HOUR)
+  };
+  assert.ok(projectedExhaustion(monthly, NOW) > NOW);
+  assert.equal(projectedExhaustion({ kind: 'unknown', usedPct: 70, resetsAt: iso(NOW + 2 * HOUR) }, NOW), null);
 });
 
 test('linha de ritmo: prefere o ritmo recente do coletor e trata os extremos', () => {

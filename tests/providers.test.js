@@ -100,7 +100,13 @@ test('Copilot: cotas com franquia viram janelas mensais; ilimitada e sem franqui
       premium_interactions: { entitlement: 0, percent_remaining: 0, unlimited: false }
     }
   });
-  assert.deepEqual(windows, [{ kind: 'monthly', label: 'Chat', usedPct: 25, resetsAt: '2026-11-01T00:00:00Z' }]);
+  assert.deepEqual(windows, [{
+    kind: 'monthly',
+    label: 'Chat',
+    windowMinutes: 30 * 24 * 60,
+    usedPct: 25,
+    resetsAt: '2026-11-01T00:00:00Z'
+  }]);
   assert.equal(copilot.planLabel({ access_type_sku: 'free_limited_copilot', copilot_plan: 'individual' }), 'Free');
   assert.equal(copilot.planLabel({ access_type_sku: 'monthly_subscriber', copilot_plan: 'individual' }), 'Individual');
 });
@@ -128,7 +134,7 @@ test('Cursor: cookie de sessão e id WorkOS a partir do JWT', () => {
   assert.equal(cursor.sessionCookie('nao-e-jwt'), null);
 });
 
-test('Cursor: ciclo mensal e ilimitado viram janela do plano', () => {
+test('Cursor: ciclo mensal, ilimitado e on-demand', () => {
   assert.deepEqual(cursor.mapWindows({
     isUnlimited: false,
     billingCycleStart: '2026-10-01T00:00:00.000Z',
@@ -148,8 +154,11 @@ test('Cursor: ciclo mensal e ilimitado viram janela do plano', () => {
   assert.deepEqual(cursor.mapWindows({
     billingCycleStart: '2026-10-13T00:00:00Z',
     billingCycleEnd: '2026-10-20T00:00:00Z',
-    individualUsage: { plan: { enabled: true, totalPercentUsed: 10 } }
-  }).map((w) => [w.kind, w.label, w.windowMinutes]), [['weekly', 'Semana', 7 * 24 * 60]]);
+    individualUsage: {
+      plan: { enabled: true, totalPercentUsed: 10 },
+      onDemand: { enabled: true, used: 25, limit: 100 }
+    }
+  }).map((w) => [w.kind, w.label, w.usedPct]), [['weekly', 'Semana', 10], ['weekly', 'Extra', 25]]);
   assert.equal(cursor.planLabel('premium'), 'Premium');
   assert.equal(cursor.planLabel(''), null);
 });

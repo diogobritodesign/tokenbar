@@ -23,8 +23,11 @@ const LEVEL_ORDER = ['off', 'ok', 'warn', 'crit'];
 
 // Contas com dado, na ordem do state.json, e a mais crítica entre elas.
 function summarize(state, options) {
+  const hidden = new Set(
+    (Array.isArray(options.hiddenProviders) ? options.hiddenProviders : []).map(String)
+  );
   const providers = (Array.isArray(state?.providers) ? state.providers : [])
-    .filter((provider) => provider && worstUsed(provider) !== null);
+    .filter((provider) => provider && worstUsed(provider) !== null && !hidden.has(provider.id));
   const items = providers.map((provider) => {
     const used = worstUsed(provider);
     return {
@@ -36,17 +39,31 @@ function summarize(state, options) {
       error: provider.error ? String(provider.error) : null
     };
   });
-  const worst = items.reduce((a, b) => (LEVEL_ORDER.indexOf(b.level) > LEVEL_ORDER.indexOf(a.level) || (b.level === a.level && b.used > a.used) ? b : a), items[0] ?? null);
-  return { items, worst };
+  const worst = items.reduce(
+    (a, b) =>
+      LEVEL_ORDER.indexOf(b.level) > LEVEL_ORDER.indexOf(a.level) ||
+      (b.level === a.level && b.used > a.used)
+        ? b
+        : a,
+    items[0] ?? null
+  );
+  const labelMode = ['critical', 'all', 'none'].includes(options.label) ? options.label : 'all';
+  let shown = items;
+  if (labelMode === 'none') shown = [];
+  else if (labelMode === 'critical' && worst) shown = [worst];
+  return { items, shown, worst };
 }
 
 // Objeto no formato "return-type": "json" da Waybar.
 export function waybarOutput(state, options = {}) {
-  const opts = { showRemaining: true, ...options };
-  const { items, worst } = summarize(state, opts);
+  const opts = { showRemaining: true, label: 'all', ...options };
+  const { items, shown, worst } = summarize(state, opts);
   if (!worst) return { text: 'TokenBar —', tooltip: 'TokenBar: no data', class: 'off', percentage: 0 };
+  const text = shown.length === 0
+    ? 'TokenBar'
+    : shown.map((item) => `${item.label} ${item.shown}%`).join('  ');
   return {
-    text: items.map((item) => `${item.label} ${item.shown}%`).join('  '),
+    text,
     tooltip: items
       .map((item) => `${item.name}: ${item.shown}%${item.error ? ` — ${item.error}` : ''}`)
       .join('\n'),
@@ -57,10 +74,11 @@ export function waybarOutput(state, options = {}) {
 
 // Uma linha para a Polybar, com as cores no formato %{F#rrggbb}.
 export function polybarOutput(state, options = {}) {
-  const opts = { showRemaining: true, colors: true, ...options };
-  const { items } = summarize(state, opts);
-  if (items.length === 0) return 'TokenBar —';
-  return items
+  const opts = { showRemaining: true, colors: true, label: 'all', ...options };
+  const { shown, worst } = summarize(state, opts);
+  if (!worst) return 'TokenBar —';
+  if (shown.length === 0) return 'TokenBar';
+  return shown
     .map((item) => {
       const text = `${item.label} ${item.shown}%`;
       return opts.colors ? `%{F${COLORS[item.level]}}●%{F-} ${text}` : text;

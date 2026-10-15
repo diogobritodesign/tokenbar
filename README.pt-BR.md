@@ -76,7 +76,7 @@ Arch e openSUSE).
 | Sigla | Ferramenta | De onde vêm os dados | Observações |
 | --- | --- | --- | --- |
 | `CLD`, `CLD2`, `CLD3`… | Claude Code | `~/.claude` e qualquer `~/.claude-<nome>` (as usadas com `CLAUDE_CONFIG_DIR`) | Sem limite fixo de contas: cada pasta encontrada entra na lista. Limites pelo endpoint de uso da Anthropic com o login que você já tem; tokens e custo pelos transcripts locais. |
-| `OAI` | Codex / ChatGPT | `~/.codex/auth.json` | Só limites. |
+| `OAI` | Codex / ChatGPT | `~/.codex/auth.json` e `~/.codex/sessions` | Limites pela API do ChatGPT; tokens e custo estimado pelos rollouts locais. |
 | `CUR`, `CUR2`… | Cursor | Login do IDE em `~/.config/Cursor` (e `~/.config/Cursor-<nome>`), e/ou o arquivo da CLI `~/.config/cursor/auth.json` | Uso do ciclo do plano pela API do painel do Cursor, com o login que já está no disco. A mesma conta no IDE e na CLI aparece uma vez; contas diferentes viram cartões separados. Precisa de `python3` para ler o banco do IDE. |
 | `AG` | Antigravity | O language server que o próprio Antigravity roda em `127.0.0.1` | Funciona com o Antigravity IDE aberto; fechado, mostra o último valor. |
 | `GH` | GitHub Copilot | A CLI oficial `gh` (`gh api`) | Cotas mensais. Precisa de `gh auth login`. |
@@ -137,7 +137,7 @@ depois entrar de novo na sessão. (A fonte Geist Mono não vem nesse modo; a
 interface usa outra fonte monoespaçada.)
 
 `./uninstall.sh` remove tudo: serviço, extensão, configurações, fonte, cache e
-histórico.
+histórico. Com `./uninstall.sh --keep-data` mantém config, cache e histórico.
 
 ## Outros desktops
 
@@ -255,14 +255,11 @@ divisão.
   server local em vez de fazer login por conta própria.
 - **Sem créditos de reset do Claude.** A Anthropic só os devolve para o
   próprio Claude Code.
-- **Codex**: só limites (ainda sem total de tokens locais), e o caminho de
-  sucesso teve pouco teste em uso real.
-- **Cursor**: só limites (ainda sem total de tokens locais). O endpoint de uso
-  é a mesma API não documentada do painel do site do Cursor; pode mudar sem
-  aviso. Ler o login do IDE precisa de `python3`.
-- Totais de tokens e custo existem só para o Claude.
-- A projeção "esgota em" não é calculada para cotas mensais.
-- Idiomas da interface: só português e inglês.
+- **Cursor**: o endpoint de uso é a mesma API não documentada do painel do
+  site; pode mudar sem aviso. Ler o login do IDE precisa de `python3`. Totais
+  de tokens locais do Cursor ainda não existem (só limites do ciclo).
+- Idiomas da interface: só português e inglês (contribuições de tradução são
+  bem-vindas).
 - **Ícone de bandeja**: o menu do botão direito é desenhado por cada desktop; o
   painel do clique esquerdo é igual em todos e abre junto do ícone (no
   Wayland isso precisa do gtk4-layer-shell; sem ele, o desktop posiciona a
@@ -292,7 +289,7 @@ painel sem sair, `scripts/preview.sh` abre um shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 72 testes em Node + 11 em Python (bandeja)
+npm test                    # 74 testes em Node + 11 em Python (bandeja)
 scripts/ui-test.sh          # 58 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 22 verificações da bandeja, do painel e do modo dock pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS

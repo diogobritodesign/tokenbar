@@ -27,11 +27,18 @@ test('Waybar: texto com o restante, dica com as contas e classe da mais crítica
     percentage: 88
   });
   assert.equal(waybarOutput(state, { showRemaining: false }).text, 'CLD 38%  CLD2 88%  AG 65%');
+  assert.equal(waybarOutput(state, { label: 'critical' }).text, 'CLD2 12%');
+  assert.equal(waybarOutput(state, { label: 'none' }).text, 'TokenBar');
+  assert.equal(
+    waybarOutput(state, { hiddenProviders: ['claude-2'] }).text,
+    'CLD 62%  AG 35%'
+  );
 });
 
 test('Polybar: cores por nível, ou texto puro', () => {
   assert.equal(polybarOutput(state), '%{F#7bea83}●%{F-} CLD 62%  %{F#ff7b72}●%{F-} CLD2 12%  %{F#ece38f}●%{F-} AG 35%');
   assert.equal(polybarOutput(state, { colors: false }), 'CLD 62%  CLD2 12%  AG 35%');
+  assert.equal(polybarOutput(state, { label: 'critical', colors: false }), 'CLD2 12%');
 });
 
 test('sem estado ou sem dados: saída neutra, sem quebrar', () => {

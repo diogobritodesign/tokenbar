@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Remove tudo o que o install.sh colocou no sistema.
+#   ./uninstall.sh            remove também config, cache e histórico
+#   ./uninstall.sh --keep-data  mantém ~/.config/tokenbar, cache e histórico
 set -uo pipefail
+
+KEEP_DATA=0
+[[ " $* " == *" --keep-data "* ]] && KEEP_DATA=1
 
 UUID="tokenbar@tokenbar"
 
@@ -30,8 +35,13 @@ systemctl --user disable --now tokenbar-collector.service 2>/dev/null || true
 rm -f "$HOME/.config/systemd/user/tokenbar-collector.service"
 systemctl --user daemon-reload 2>/dev/null || true
 rm -f "$HOME/.local/bin/tokenbar-collector"
-rm -rf "$HOME/.local/share/tokenbar" "$HOME/.cache/tokenbar" "$HOME/.config/tokenbar"
-rm -rf "$HOME/.local/share/fonts/tokenbar" "$HOME/.local/state/tokenbar"
+rm -rf "$HOME/.local/share/tokenbar"
+rm -rf "$HOME/.local/share/fonts/tokenbar"
 fc-cache -f 2>/dev/null || true
+if [[ $KEEP_DATA == 1 ]]; then
+  echo "Kept ~/.config/tokenbar, ~/.cache/tokenbar and ~/.local/state/tokenbar"
+else
+  rm -rf "$HOME/.cache/tokenbar" "$HOME/.config/tokenbar" "$HOME/.local/state/tokenbar"
+fi
 
 echo "Removed. On Wayland, the extension code leaves the shell's memory at your next login."

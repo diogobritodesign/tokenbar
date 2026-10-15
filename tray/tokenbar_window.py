@@ -158,8 +158,14 @@ WINDOW_STRINGS = {
     's_dock': ('Ícone na barra de baixo (só a logo)', 'Icon in the bottom bar (logo only)'),
     's_label': ('Texto ao lado do ícone', 'Text next to the icon'),
     'label_critical': ('Mais crítica', 'Most critical'), 'label_all': ('Todas', 'All'), 'label_none': ('Nenhum', 'None'),
-    's_alerts': ('Cores', 'Colours'), 'warn_at': ('Amarelo com uso de', 'Yellow at usage of'),
+    's_alerts': ('Alertas', 'Alerts'), 'warn_at': ('Amarelo com uso de', 'Yellow at usage of'),
     'crit_above': ('Vermelho com uso acima de', 'Red at usage above'),
+    's_budget_day': ('Meta do dia', 'Daily goal'), 's_budget_month': ('Meta de 30 dias', '30-day goal'),
+    's_notifications': ('Notificações do desktop', 'Desktop notifications'),
+    's_update_check': ('Avisar sobre atualizações', 'Notify about updates'),
+    's_export_csv': ('Exportar histórico CSV', 'Export history CSV'),
+    'export_ok': ('CSV gravado em {path}', 'CSV saved to {path}'),
+    'export_fail': ('Não deu para exportar o CSV', 'Could not export the CSV'),
     's_data': ('Coletor', 'Collector'), 'interval': ('Intervalo de coleta', 'Collection interval'),
     's_about': ('Sobre', 'About'), 'created_by': ('Criado por {name} · Licença GPL-3.0', 'Created by {name} · GPL-3.0 license'),
     'site': ('Site do autor', "Author's website"), 'code': ('Código no GitHub', 'Code on GitHub'),
@@ -536,6 +542,7 @@ class PanelWindow:
         self.scroll_position = 0.0
         self.update_status = None
         self.refresh_label = None
+        self.export_message = None
         self.state = None
         self.options = None
         self.words = None
@@ -919,6 +926,18 @@ class PanelWindow:
         colors.append(setting_row(w('crit_above'), stepper(lambda: self.read_bar().get('crit', 85),
                                                            lambda d: self.set_bar('crit', max(self.read_bar().get('warn', 60) + 5, min(100, self.read_bar().get('crit', 85) + 5 * d)), rerender=False),
                                                            lambda v: f'{v}%')))
+        colors.append(setting_row(w('s_budget_day'), stepper(lambda: self.read_config().get('budgetDaily', 0),
+                                                             lambda d: self.set_config('budgetDaily', max(0, min(100000, self.read_config().get('budgetDaily', 0) + 5 * d))),
+                                                             lambda v: str(v) if v else '—')))
+        colors.append(setting_row(w('s_budget_month'), stepper(lambda: self.read_config().get('budgetMonthly', 0),
+                                                               lambda d: self.set_config('budgetMonthly', max(0, min(1000000, self.read_config().get('budgetMonthly', 0) + 20 * d))),
+                                                               lambda v: str(v) if v else '—')))
+        notifications = Gtk.Switch(active=config.get('notifications') is not False, valign=Gtk.Align.CENTER)
+        notifications.connect('notify::active', lambda sw, _p: self.set_config('notifications', sw.get_active()))
+        colors.append(setting_row(w('s_notifications'), notifications))
+        update_check = Gtk.Switch(active=config.get('updateCheck') is not False, valign=Gtk.Align.CENTER)
+        update_check.connect('notify::active', lambda sw, _p: self.set_config('updateCheck', sw.get_active()))
+        colors.append(setting_row(w('s_update_check'), update_check))
         cards.append(colors)
 
         data = box(True, 12, 'card')
@@ -926,6 +945,10 @@ class PanelWindow:
         data.append(setting_row(w('interval'), stepper(lambda: self.read_config().get('intervalSec', 120),
                                                         lambda d: self.set_config('intervalSec', max(60, min(600, self.read_config().get('intervalSec', 120) + 30 * d))),
                                                         lambda v: f'{v} s')))
+        export_btn = text_button(w('s_export_csv'), self.export_csv, 'tb', 'small')
+        data.append(export_btn)
+        if self.export_message:
+            data.append(label(self.export_message, 'muted', 'small'))
         cards.append(data)
 
         about = box(True, 12, 'card')
@@ -1006,6 +1029,22 @@ class PanelWindow:
     def toggle_view(self):
         self.view = 'main' if self.view == 'settings' else 'settings'
         self.scroll_position = 0.0
+        GLib.idle_add(lambda: (self.render(), False)[1])
+
+    def export_csv(self):
+        downloads = os.path.join(os.path.expanduser('~'), 'Downloads')
+        folder = downloads if os.path.isdir(downloads) else os.path.expanduser('~')
+        path = os.path.join(folder, f"tokenbar-{time.strftime('%Y-%m-%d')}.csv")
+        try:
+            result = subprocess.run(
+                [self.collector, '--export-csv', path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            self.export_message = self.words('export_ok', path=path) if result.returncode == 0 else self.words('export_fail')
+        except OSError:
+            self.export_message = self.words('export_fail')
         GLib.idle_add(lambda: (self.render(), False)[1])
 
     def refresh(self):

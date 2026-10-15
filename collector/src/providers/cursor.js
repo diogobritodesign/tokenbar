@@ -71,13 +71,33 @@ export function mapWindows(usage) {
     resetsAt
   });
 
-  if (usage?.isUnlimited === true) return [window(0)];
+  const windows = [];
+  if (usage?.isUnlimited === true) {
+    windows.push(window(0));
+  } else {
+    const plan = usage?.individualUsage?.plan ?? usage?.individual_usage?.plan ?? usage?.planUsage;
+    if (plan && plan.enabled !== false) {
+      const used = Number(plan.totalPercentUsed ?? plan.total_percent_used);
+      if (Number.isFinite(used)) windows.push(window(Math.round(Math.min(Math.max(used, 0), 100))));
+    }
+  }
 
-  const plan = usage?.individualUsage?.plan ?? usage?.individual_usage?.plan ?? usage?.planUsage;
-  if (!plan || plan.enabled === false) return [];
-  const used = Number(plan.totalPercentUsed ?? plan.total_percent_used);
-  if (!Number.isFinite(used)) return [];
-  return [window(Math.round(Math.min(Math.max(used, 0), 100)))];
+  // Franquia on-demand (pago à parte), quando o painel do Cursor informa teto.
+  const onDemand = usage?.individualUsage?.onDemand ?? usage?.individual_usage?.on_demand;
+  if (onDemand?.enabled === true) {
+    const used = Number(onDemand.used);
+    const limit = Number(onDemand.limit);
+    if (Number.isFinite(used) && Number.isFinite(limit) && limit > 0) {
+      windows.push({
+        kind: weekly ? 'weekly' : 'monthly',
+        label: t('label.onDemand'),
+        windowMinutes: windowMinutes ?? (weekly ? 10080 : 30 * 24 * 60),
+        usedPct: Math.round(Math.min(Math.max((used / limit) * 100, 0), 100)),
+        resetsAt
+      });
+    }
+  }
+  return windows;
 }
 
 async function readCliAuth(path) {
@@ -147,16 +167,24 @@ async function listIdeDirs(configDir) {
 export async function discoverCursorAccounts(configDir = configHome()) {
   const found = [];
 
-  let ideReader = readIdeAuth;
   for (const ide of await listIdeDirs(configDir)) {
     let auth;
     try {
-      auth = await ideReader(stateDbPath(ide.dir));
+      auth = await readIdeAuth(stateDbPath(ide.dir));
     } catch (error) {
-      // Sem python3 não lemos o IDE; a CLI (auth.json) ainda pode aparecer.
+      // Sem python3: ainda listamos a conta do IDE para o cartão explicar o erro.
       if (error instanceof CollectError) {
-        ideReader = async () => null;
-        continue;
+        found.push({
+          source: 'ide',
+          id: ide.suffix ? `cursor-ide-${ide.suffix}` : 'cursor-ide',
+          suffix: ide.suffix,
+          userId: null,
+          readAuth: async () => {
+            throw error;
+          },
+          fetchError: error
+        });
+        break;
       }
       auth = null;
     }
@@ -167,26 +195,21 @@ export async function discoverCursorAccounts(configDir = configHome()) {
       id: ide.suffix ? `cursor-ide-${ide.suffix}` : 'cursor-ide',
       suffix: ide.suffix,
       userId,
-      email: auth.email,
-      membershipType: auth.membershipType,
       readAuth: async () => readIdeAuth(stateDbPath(ide.dir))
     });
   }
-
   const cliPath = join(configDir, 'cursor', 'auth.json');
   if (await platform.exists(cliPath)) {
     const auth = await readCliAuth(cliPath);
     if (auth) {
       const userId = workosUserId(auth.accessToken);
-      // Mesma conta no IDE e na CLI: fica só a do IDE (tem e-mail e plano locais).
-      if (!userId || !found.some((entry) => entry.userId === userId)) {
+      // Mesma conta no IDE e na CLI: fica só a do IDE.
+      if (!userId || !found.some((entry) => entry.userId && entry.userId === userId)) {
         found.push({
           source: 'cli',
           id: 'cursor-cli',
           suffix: null,
           userId,
-          email: auth.email,
-          membershipType: auth.membershipType,
           readAuth: async () => readCliAuth(cliPath)
         });
       }
@@ -208,7 +231,8 @@ export async function discoverCursorAccounts(configDir = configHome()) {
       label,
       name,
       source: entry.source,
-      readAuth: entry.readAuth
+      readAuth: entry.readAuth,
+      fetchError: entry.fetchError || null
     };
   });
 }
@@ -218,12 +242,16 @@ function cursorProvider(account) {
     id: account.id,
     label: account.label,
     name: account.name,
-    // A conta "existe" se ainda conseguimos achar as credenciais dela.
-    exists: async () => Boolean(await account.readAuth().catch(() => null)),
+    // A conta "existe" se ainda há pasta/arquivo dela, mesmo sem conseguir ler.
+    exists: async () => {
+      if (account.fetchError) return true;
+      return Boolean(await account.readAuth().catch(() => null));
+    },
     // Cotas do ciclo de cobrança: a cada 5 min basta.
     minIntervalMs: 5 * 60 * 1000,
 
     async fetchLimits() {
+      if (account.fetchError) throw account.fetchError;
       const auth = await account.readAuth();
       if (!auth?.accessToken) {
         throw new CollectError('unauthorized', t('cursor.noCredentials', { hint: hint() }));

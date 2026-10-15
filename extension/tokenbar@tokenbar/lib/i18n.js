@@ -89,6 +89,7 @@ export const STRINGS = {
     'notify.exportFailed': ['Não foi possível exportar o histórico', 'Could not export the history'],
     'notify.loginExpired': ['{account}: login expirado', '{account}: login expired'],
     'notify.goalHit': ['Meta de gasto do dia atingida', 'Daily spending goal reached'],
+    'notify.goalHitMonth': ['Meta de gasto dos 30 dias atingida', '30-day spending goal reached'],
     'notify.goalBody': ['{spent} de {goal}, a preço de API.', '{spent} of {goal}, at API prices.'],
     'notify.over': ['{name}: {pct}% usado', '{name}: {pct}% used'],
     'notify.overBody': ['Passou de {crit}%.', 'Went above {crit}%.'],
