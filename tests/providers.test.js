@@ -6,8 +6,16 @@ import * as antigravity from '../collector/src/providers/antigravity.js';
 import * as claude from '../collector/src/providers/claude.js';
 import * as codex from '../collector/src/providers/codex.js';
 import * as copilot from '../collector/src/providers/copilot.js';
+import * as cursor from '../collector/src/providers/cursor.js';
 import { setLanguage } from '../collector/src/i18n.js';
 import { tempDir } from './helpers.js';
+
+// JWT de mentira só para testes (payload: {"sub":"google-oauth2|user_TEST123"}).
+function fakeJwt(sub = 'google-oauth2|user_TEST123') {
+  const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub })).toString('base64url');
+  return `${header}.${payload}.sig`;
+}
 
 // Rótulos e nomes abaixo são os de português.
 test.beforeEach(() => setLanguage('pt'));
@@ -112,10 +120,90 @@ test('Codex: janela curta é sessão, longa é semanal; reset como instante ou c
   assert.equal(codex.toWindow({ limit_window_seconds: 18000 }, now), null);
 });
 
+test('Cursor: cookie de sessão e id WorkOS a partir do JWT', () => {
+  const token = fakeJwt('auth0|user_ABC');
+  assert.equal(cursor.workosUserId(token), 'user_ABC');
+  assert.equal(cursor.sessionCookie(token), `WorkosCursorSessionToken=user_ABC%3A%3A${token}`);
+  assert.equal(cursor.workosUserId('nao-e-jwt'), null);
+  assert.equal(cursor.sessionCookie('nao-e-jwt'), null);
+});
+
+test('Cursor: ciclo mensal e ilimitado viram janela do plano', () => {
+  assert.deepEqual(cursor.mapWindows({
+    isUnlimited: false,
+    billingCycleStart: '2026-10-01T00:00:00.000Z',
+    billingCycleEnd: '2026-11-01T00:00:00.000Z',
+    individualUsage: { plan: { enabled: true, totalPercentUsed: 37.4 } }
+  }), [{
+    kind: 'monthly',
+    label: 'Plano',
+    windowMinutes: 31 * 24 * 60,
+    usedPct: 37,
+    resetsAt: '2026-11-01T00:00:00Z'
+  }]);
+  assert.equal(cursor.mapWindows({
+    isUnlimited: true,
+    billingCycleEnd: '2026-11-01T00:00:00Z'
+  })[0].usedPct, 0);
+  assert.deepEqual(cursor.mapWindows({
+    billingCycleStart: '2026-10-13T00:00:00Z',
+    billingCycleEnd: '2026-10-20T00:00:00Z',
+    individualUsage: { plan: { enabled: true, totalPercentUsed: 10 } }
+  }).map((w) => [w.kind, w.label, w.windowMinutes]), [['weekly', 'Semana', 7 * 24 * 60]]);
+  assert.equal(cursor.planLabel('premium'), 'Premium');
+  assert.equal(cursor.planLabel(''), null);
+});
+
+test('Cursor: descobre CLI e perfis IDE; deduplica a mesma conta', async (t) => {
+  const config = await tempDir(t);
+  const tokenA = fakeJwt('google-oauth2|user_AAAA');
+  const tokenB = fakeJwt('google-oauth2|user_BBBB');
+
+  await fs.mkdir(path.join(config, 'cursor'), { recursive: true });
+  await fs.writeFile(path.join(config, 'cursor', 'auth.json'), JSON.stringify({ accessToken: tokenA }));
+
+  // Só a CLI.
+  let accounts = await cursor.discoverCursorAccounts(config);
+  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name]), [['cursor-cli', 'CUR', 'Cursor']]);
+
+  // Mesmo usuário no IDE: fica só o IDE.
+  const ideDb = path.join(config, 'Cursor', 'User', 'globalStorage');
+  await fs.mkdir(ideDb, { recursive: true });
+  await seedCursorDb(path.join(ideDb, 'state.vscdb'), tokenA);
+  accounts = await cursor.discoverCursorAccounts(config);
+  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name]), [['cursor-ide', 'CUR', 'Cursor']]);
+
+  // Conta diferente na CLI: as duas aparecem.
+  await fs.writeFile(path.join(config, 'cursor', 'auth.json'), JSON.stringify({ accessToken: tokenB }));
+  accounts = await cursor.discoverCursorAccounts(config);
+  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name]), [
+    ['cursor-ide', 'CUR', 'Cursor (IDE)'],
+    ['cursor-cli', 'CUR2', 'Cursor (CLI)']
+  ]);
+});
+
+async function seedCursorDb(dbPath, accessToken) {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execFileAsync = promisify(execFile);
+  await execFileAsync('python3', ['-c', `
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+con.execute("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB)")
+con.execute("INSERT INTO ItemTable VALUES (?, ?)", ("cursorAuth/accessToken", sys.argv[2]))
+con.execute("INSERT INTO ItemTable VALUES (?, ?)", ("cursorAuth/stripeMembershipType", "premium"))
+con.commit()
+`, dbPath, accessToken]);
+}
+
 test('em inglês, os rótulos e nomes gerados pelo coletor mudam', async (t) => {
   setLanguage('en');
   assert.equal(claude.mapWindows({ seven_day: { utilization: 1 } })[0].label, 'Week');
   assert.equal(codex.toWindow({ used_percent: 5, limit_window_seconds: 604800 }, 0).label, 'Week');
+  assert.equal(cursor.mapWindows({
+    billingCycleEnd: '2026-11-01T00:00:00Z',
+    individualUsage: { plan: { enabled: true, totalPercentUsed: 1 } }
+  })[0].label, 'Plan');
   const quota = { entitlement: 10, percent_remaining: 50, unlimited: false };
   assert.deepEqual(copilot.mapWindows({ quota_snapshots: { completions: quota } }).map((w) => w.label), ['Code']);
   const home = await tempDir(t);

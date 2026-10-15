@@ -9,6 +9,7 @@ import { applyRecentPace } from './pace.js';
 import { claudeProviders } from './providers/claude.js';
 import { codexProviders } from './providers/codex.js';
 import { copilotProviders } from './providers/copilot.js';
+import { cursorProviders } from './providers/cursor.js';
 import { serviceStatus } from './status.js';
 import { checkForUpdate } from './update.js';
 import { localDayKey } from './usage/claudeTranscripts.js';
@@ -20,8 +21,16 @@ const MIN_INTERVAL_SEC = 60;
 const MAX_INTERVAL_SEC = 3600;
 
 // Todos os provedores cuja pasta existe nesta máquina, na ordem de exibição.
+// A lista é descoberta a cada ciclo (contas Claude extras, perfis Cursor…):
+// não há teto fixo — o que existir e estiver ligado nas configurações aparece.
 async function listProviders() {
-  const all = [...(await claudeProviders()), ...codexProviders, ...antigravityProviders, ...copilotProviders];
+  const all = [
+    ...(await claudeProviders()),
+    ...codexProviders,
+    ...(await cursorProviders()),
+    ...antigravityProviders,
+    ...copilotProviders
+  ];
   const present = [];
   for (const provider of all) {
     if (await provider.exists()) present.push(provider);

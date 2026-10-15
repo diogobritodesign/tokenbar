@@ -9,9 +9,9 @@
 Limites de uso de IA, sempre visíveis no seu desktop Linux.
 
 O TokenBar mostra quanto resta da sua cota do **Claude Code**, **Codex /
-ChatGPT**, **Antigravity** e **GitHub Copilot**, e abre um painel com os
-detalhes ao clicar. Sem Electron, sem janela flutuante: um coletor pequeno
-grava um arquivo JSON e uma parte nativa do seu desktop desenha.
+ChatGPT**, **Cursor**, **Antigravity** e **GitHub Copilot**, e abre um painel
+com os detalhes ao clicar. Sem Electron, sem janela flutuante: um coletor
+pequeno grava um arquivo JSON e uma parte nativa do seu desktop desenha.
 
 ### Funciona em
 
@@ -75,20 +75,24 @@ Arch e openSUSE).
 
 | Sigla | Ferramenta | De onde vêm os dados | Observações |
 | --- | --- | --- | --- |
-| `CLD`, `CLD2`… | Claude Code | `~/.claude` e qualquer `~/.claude-<nome>` (as usadas com `CLAUDE_CONFIG_DIR`) | Limites pelo endpoint de uso da Anthropic com o login que você já tem; tokens e custo pelos transcripts locais. |
+| `CLD`, `CLD2`, `CLD3`… | Claude Code | `~/.claude` e qualquer `~/.claude-<nome>` (as usadas com `CLAUDE_CONFIG_DIR`) | Sem limite fixo de contas: cada pasta encontrada entra na lista. Limites pelo endpoint de uso da Anthropic com o login que você já tem; tokens e custo pelos transcripts locais. |
 | `OAI` | Codex / ChatGPT | `~/.codex/auth.json` | Só limites. |
+| `CUR`, `CUR2`… | Cursor | Login do IDE em `~/.config/Cursor` (e `~/.config/Cursor-<nome>`), e/ou o arquivo da CLI `~/.config/cursor/auth.json` | Uso do ciclo do plano pela API do painel do Cursor, com o login que já está no disco. A mesma conta no IDE e na CLI aparece uma vez; contas diferentes viram cartões separados. Precisa de `python3` para ler o banco do IDE. |
 | `AG` | Antigravity | O language server que o próprio Antigravity roda em `127.0.0.1` | Funciona com o Antigravity IDE aberto; fechado, mostra o último valor. |
 | `GH` | GitHub Copilot | A CLI oficial `gh` (`gh api`) | Cotas mensais. Precisa de `gh auth login`. |
 
-**Nenhuma dessas ferramentas é obrigatória.** O TokenBar mostra as que você
-tiver: uma conta só aparece se a pasta dela existir na máquina, e cada uma
-pode ser desligada nas configurações. Dá para usar só com o Claude Code, por
-exemplo, e não é preciso ter o Antigravity instalado.
+**Nenhuma dessas ferramentas é obrigatória.** O TokenBar **descobre** o que
+existe na máquina a cada coleta: uma conta só aparece se a pasta ou o login
+dela existir, e nas configurações você escolhe quais coletar e quais mostrar
+na barra. Não há teto fixo (o Claude não fica limitado a duas contas, e o
+Cursor pode mostrar mais de uma quando IDE e CLI forem pessoas diferentes).
+Dá para usar só com o Claude Code, por exemplo, e não é preciso ter o
+Antigravity nem o Cursor instalados.
 
-Claude Code, Codex e Copilot são lidos do mesmo jeito, não importa se você os
-usa no terminal, no VS Code ou em outro editor. O Antigravity é o único que
-depende do próprio programa: o cartão dele precisa do Antigravity IDE aberto
-(a CLI de terminal `agy` sozinha não é detectada).
+Claude Code, Codex, Cursor e Copilot são lidos do mesmo jeito, não importa se
+você os usa no terminal, no VS Code ou em outro editor. O Antigravity é o
+único que depende do próprio programa: o cartão dele precisa do Antigravity
+IDE aberto (a CLI de terminal `agy` sozinha não é detectada).
 
 ## Requisitos
 
@@ -99,7 +103,8 @@ depende do próprio programa: o cartão dele precisa do Antigravity IDE aberto
   usuário do systemd (padrão no Fedora, Ubuntu, Debian, Arch, openSUSE).
 - Pelo pacote da extensão (`scripts/pack-extension.sh`): nada além do próprio
   GNOME; ele usa o `gjs` que já vem com o GNOME.
-- `ss` do iproute2 (para o Antigravity) e `gh` (para o Copilot), opcionais.
+- `ss` do iproute2 (para o Antigravity), `gh` (para o Copilot) e `python3`
+  (para o login do Cursor IDE), opcionais.
 
 Fora do GNOME, a extensão é trocada por um ícone de bandeja (veja
 [Outros desktops](#outros-desktops)), que precisa do Python 3 com PyGObject.
@@ -252,6 +257,9 @@ divisão.
   próprio Claude Code.
 - **Codex**: só limites (ainda sem total de tokens locais), e o caminho de
   sucesso teve pouco teste em uso real.
+- **Cursor**: só limites (ainda sem total de tokens locais). O endpoint de uso
+  é a mesma API não documentada do painel do site do Cursor; pode mudar sem
+  aviso. Ler o login do IDE precisa de `python3`.
 - Totais de tokens e custo existem só para o Claude.
 - A projeção "esgota em" não é calculada para cotas mensais.
 - Idiomas da interface: só português e inglês.
@@ -284,7 +292,7 @@ painel sem sair, `scripts/preview.sh` abre um shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 69 testes em Node + 11 em Python (bandeja)
+npm test                    # 72 testes em Node + 11 em Python (bandeja)
 scripts/ui-test.sh          # 58 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 22 verificações da bandeja, do painel e do modo dock pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS

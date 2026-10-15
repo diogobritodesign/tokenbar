@@ -3,6 +3,7 @@
 export const PROVIDERS = [
     {id: 'claude-main', label: 'CLD', name: 'Claude'},
     {id: 'codex', label: 'OAI', name: 'Codex / ChatGPT'},
+    {id: 'cursor-ide', label: 'CUR', name: 'Cursor'},
     {id: 'antigravity', label: 'AG', name: 'Antigravity'},
     {id: 'copilot', label: 'GH', name: 'GitHub Copilot'},
 ];

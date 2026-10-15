@@ -1,7 +1,7 @@
 {
   "name": "tokenbar",
   "version": "0.1.0",
-  "description": "AI usage limits in the GNOME top bar: Claude Code, Codex, Antigravity and Copilot",
+  "description": "AI usage limits in the GNOME top bar: Claude Code, Codex, Cursor, Antigravity and Copilot",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
