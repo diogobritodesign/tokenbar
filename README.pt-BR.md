@@ -239,13 +239,18 @@ para fechar o ícone de bandeja pelo menu dele).
 
 ## Sobre o valor em dinheiro
 
-O valor mostrado é **quanto o seu uso custaria na API paga por token**. Numa
-assinatura (Pro, Max…) você não paga isso; serve para ver quanto a assinatura
-está rendendo. Os preços são uma tabela mantida à mão em
-`collector/src/pricing.js`; o uso de um modelo fora da tabela conta nos tokens
-e é sinalizado como "custo parcial". O total de tokens inclui leitura de
-cache, que costuma ser a grande maioria; os detalhes de cada conta mostram a
-divisão.
+No Claude e no Codex, o valor mostrado é **quanto o seu uso custaria na API
+paga por token**. Numa assinatura (Pro, Max…) você não paga isso; serve para
+ver quanto a assinatura está rendendo. Os preços são uma tabela mantida à mão
+em `collector/src/pricing.js`; o uso de um modelo fora da tabela conta nos
+tokens e é sinalizado como "custo parcial". O total de tokens inclui leitura
+de cache, que costuma ser a grande maioria; os detalhes de cada conta mostram
+a divisão.
+
+No **Cursor**, o valor é o **gasto de hoje do painel de cobrança do Cursor**
+(eventos agregados), não uma estimativa da tabela local de preços. Em alguns
+planos (em especial o pool semanal Premium) a API só devolve percentual, sem
+campos em dinheiro por dia — aí o TokenBar não inventa um valor.
 
 ## Limitações
 
@@ -256,8 +261,10 @@ divisão.
 - **Sem créditos de reset do Claude.** A Anthropic só os devolve para o
   próprio Claude Code.
 - **Cursor**: o endpoint de uso é a mesma API não documentada do painel do
-  site; pode mudar sem aviso. Ler o login do IDE precisa de `python3`. Totais
-  de tokens locais do Cursor ainda não existem (só limites do ciclo).
+  site; pode mudar sem aviso. Ler o login do IDE precisa de `python3`. Tokens
+  e gasto vêm dessa API quando ela os envia (não dos transcripts locais).
+  Contas Premium semanais podem ter só o percentual, sem breakdown em
+  dinheiro.
 - Idiomas da interface: só português e inglês (contribuições de tradução são
   bem-vindas).
 - **Ícone de bandeja**: o menu do botão direito é desenhado por cada desktop; o

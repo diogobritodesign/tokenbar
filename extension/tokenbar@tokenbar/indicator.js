@@ -1016,7 +1016,7 @@ class TokenBarIndicator extends PanelMenu.Button {
                 y_align: Clutter.ActorAlign.END,
             }));
         }
-        if (Number.isFinite(provider.tokensToday)) {
+        if (Number.isFinite(provider.tokensToday) || Number.isFinite(provider.costTodayUsd)) {
             const today = new St.BoxLayout({
                 orientation: Clutter.Orientation.VERTICAL,
                 x_expand: true,
@@ -1028,11 +1028,13 @@ class TokenBarIndicator extends PanelMenu.Button {
                 text: t('tokens.today'),
                 x_align: Clutter.ActorAlign.END,
             }));
-            today.add_child(new St.Label({
-                style_class: 'tokenbar-medium',
-                text: formatTokens(provider.tokensToday),
-                x_align: Clutter.ActorAlign.END,
-            }));
+            if (Number.isFinite(provider.tokensToday)) {
+                today.add_child(new St.Label({
+                    style_class: 'tokenbar-medium',
+                    text: formatTokens(provider.tokensToday),
+                    x_align: Clutter.ActorAlign.END,
+                }));
+            }
             if (Number.isFinite(provider.costTodayUsd)) {
                 today.add_child(new St.Label({
                     style_class: 'tokenbar-muted tokenbar-small',

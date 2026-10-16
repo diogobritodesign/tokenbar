@@ -256,13 +256,18 @@ Files it writes:
 
 ## About the cost figure
 
-The amount shown is **what your usage would cost on the pay-per-token API**.
-If you are on a subscription (Pro, Max…) you are not charged that; it is a way
-to see how much the subscription is giving you. Prices are a hand-maintained
-table in `collector/src/pricing.js`; usage of a model that is not in the table
-is counted in tokens and flagged as "partial cost". Token totals include cache
-reads, which are usually the vast majority; the per-account details show the
-split.
+For Claude and Codex, the amount shown is **what your usage would cost on the
+pay-per-token API**. If you are on a subscription (Pro, Max…) you are not
+charged that; it is a way to see how much the subscription is giving you.
+Prices are a hand-maintained table in `collector/src/pricing.js`; usage of a
+model that is not in the table is counted in tokens and flagged as "partial
+cost". Token totals include cache reads, which are usually the vast majority;
+the per-account details show the split.
+
+For **Cursor**, the amount is **today's spend from Cursor's billing dashboard**
+(aggregated usage events), not an estimate from the local price table. Some
+plans (notably the Premium weekly pool) currently only expose a percentage and
+no per-day dollar fields — in that case TokenBar cannot invent a cost figure.
 
 ## Limitations
 
@@ -274,8 +279,9 @@ split.
   itself.
 - **Cursor**: the usage endpoint is the same undocumented dashboard API the
   Cursor website uses; it can change without notice. Reading the IDE login
-  needs `python3`. Local Cursor token totals are not counted yet (plan-cycle
-  limits only).
+  needs `python3`. Tokens and spend come from that API when it returns them
+  (not from local agent transcripts). Premium weekly accounts may only get
+  percentage limits with no dollar breakdown.
 - Interface languages: English and Portuguese only (translation contributions
   welcome).
 - **Tray icon**: the right-click menu is drawn by each desktop; the panel opened

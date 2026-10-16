@@ -781,11 +781,12 @@ class PanelWindow:
             caption = label(w('remaining') if self.options['show_remaining'] else w('used'), 'muted', 'small', 'big-caption')
             caption.set_valign(Gtk.Align.END)
             hero.append(caption)
-        if isinstance(provider.get('tokensToday'), (int, float)):
+        if isinstance(provider.get('tokensToday'), (int, float)) or isinstance(provider.get('costTodayUsd'), (int, float)):
             today = box(True, 0, hexpand=True)
             today.set_valign(Gtk.Align.END)
             today.append(label(w('tokens_today'), 'muted', 'small', xalign=1))
-            today.append(label(w.tokens(provider['tokensToday']), 'medium', xalign=1))
+            if isinstance(provider.get('tokensToday'), (int, float)):
+                today.append(label(w.tokens(provider['tokensToday']), 'medium', xalign=1))
             if isinstance(provider.get('costTodayUsd'), (int, float)):
                 today.append(label('≈ ' + self.money(provider['costTodayUsd']), 'muted', 'small', xalign=1))
             hero.append(today)

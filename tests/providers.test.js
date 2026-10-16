@@ -172,6 +172,53 @@ test('Cursor: ciclo mensal, ilimitado, on-demand e pool semanal em epoch ms', ()
   assert.equal(cursor.planLabel(''), null);
 });
 
+test('Cursor: agregado do painel vira tokens e custo do dia', () => {
+  const usage = cursor.mapAggregatedUsage({
+    totalCostCents: 2167.69,
+    aggregations: [
+      {
+        modelIntent: 'composer-2.5',
+        inputTokens: '1000',
+        outputTokens: '200',
+        cacheReadTokens: '8000',
+        cacheWriteTokens: '0',
+        totalCents: 1500.5
+      },
+      {
+        modelIntent: 'claude-4-sonnet',
+        inputTokens: '100',
+        outputTokens: '50',
+        cacheReadTokens: '0',
+        cacheWriteTokens: '0',
+        totalCents: 667.19
+      }
+    ]
+  });
+  assert.equal(usage.tokens, 9350);
+  assert.equal(usage.costUsd, 21.68);
+  assert.deepEqual(usage.breakdown, { input: 1100, output: 250, cacheWrite: 0, cacheRead: 8000 });
+  assert.deepEqual(usage.models.map((m) => [m.model, m.tokens, m.costUsd]), [
+    ['composer-2.5', 9200, 15.01],
+    ['claude-4-sonnet', 150, 6.67]
+  ]);
+  assert.equal(cursor.mapAggregatedUsage({ aggregations: [] }), null);
+  assert.equal(cursor.mapAggregatedUsage(null), null);
+
+  const noon = new Date(2026, 9, 16, 12, 0, 0);
+  const { startMs, endMs } = cursor.localDayBoundsMs(noon);
+  assert.equal(new Date(startMs).getHours(), 0);
+  assert.equal(endMs - startMs, 24 * 60 * 60 * 1000 - 1);
+
+  assert.deepEqual(cursor.mapPlanSpend({
+    planUsage: { totalSpend: 1234, includedSpend: 1000, used: 50 }
+  }), {
+    tokens: 50, costUsd: 12.34, unpricedTokens: 0, breakdown: null, models: [], sessions: []
+  });
+  assert.equal(cursor.mapPlanSpend({
+    planUsage: { totalPercentUsed: 44, used: 0 }
+  }), null, 'percentual sem totalSpend não vira dólar');
+});
+
 test('Cursor: descobre CLI e perfis IDE; deduplica a mesma conta', async (t) => {
   const config = await tempDir(t);
   const tokenA = fakeJwt('google-oauth2|user_AAAA');

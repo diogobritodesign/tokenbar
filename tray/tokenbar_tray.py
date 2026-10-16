@@ -388,8 +388,11 @@ class View:
             name = ' '.join(str(part) for part in (window.get('group'), window.get('label') or window.get('kind')) if part)
             reset = self.t.reset(window.get('resetsAt'), self.now)
             lines.append(f"{name}: {self.shown(window['usedPct'])}%" + (f' · {reset}' if reset else ''))
-        if isinstance(provider.get('tokensToday'), (int, float)):
-            line = self.t('tokens_today', tokens=self.t.tokens(provider['tokensToday']))
+        if isinstance(provider.get('tokensToday'), (int, float)) or isinstance(provider.get('costTodayUsd'), (int, float)):
+            if isinstance(provider.get('tokensToday'), (int, float)):
+                line = self.t('tokens_today', tokens=self.t.tokens(provider['tokensToday']))
+            else:
+                line = self.t('tokens_today', tokens='—')
             if isinstance(provider.get('costTodayUsd'), (int, float)):
                 line += ' ≈ ' + self.t.money(provider['costTodayUsd'], self.state.get('fx'), self.options['currency'])
             lines.append(line)

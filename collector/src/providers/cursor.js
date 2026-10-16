@@ -8,9 +8,13 @@ import { t } from '../i18n.js';
 // Painel novo (Premium / pool semanal): DashboardService com o token do IDE.
 // usage-summary do site ainda devolve o ciclo mensal antigo (muitas vezes 0%).
 const PERIOD_URL = 'https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage';
+const AGGREGATED_URL = 'https://api2.cursor.sh/aiserver.v1.DashboardService/GetAggregatedUsageEvents';
 const SUMMARY_URL = 'https://cursor.com/api/usage-summary';
+const AGGREGATED_WEB_URL = 'https://cursor.com/api/dashboard/get-aggregated-usage-events';
 const hint = () => t('cursor.hint');
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
+// Mesmo intervalo das cotas: o agregado é remoto e o painel cacheia no servidor.
+const USAGE_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 // Credenciais em dois lugares distintos (podem ser contas diferentes):
 //   IDE  — SQLite em ~/.config/Cursor/.../state.vscdb (e ~/.config/Cursor-<nome>)
@@ -53,6 +57,71 @@ export function sessionCookie(accessToken) {
 export function planLabel(membershipType) {
   const plan = String(membershipType || '').trim();
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : null;
+}
+
+// Início e fim do dia local em ms (fim inclusivo), para filtrar o agregado.
+export function localDayBoundsMs(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { startMs: start.getTime(), endMs: end.getTime() - 1 };
+}
+
+function numToken(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function roundCents(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// Soma tokens e custo (centavos do painel) do GetAggregatedUsageEvents.
+export function mapAggregatedUsage(raw) {
+  const rows = Array.isArray(raw?.aggregations) ? raw.aggregations : [];
+  let tokens = 0;
+  let costCents = 0;
+  const breakdown = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+  const models = [];
+
+  for (const row of rows) {
+    const input = numToken(row?.inputTokens);
+    const output = numToken(row?.outputTokens);
+    const cacheWrite = numToken(row?.cacheWriteTokens);
+    const cacheRead = numToken(row?.cacheReadTokens);
+    const rowTokens = input + output + cacheWrite + cacheRead;
+    const cents = Number(row?.totalCents);
+    tokens += rowTokens;
+    breakdown.input += input;
+    breakdown.output += output;
+    breakdown.cacheWrite += cacheWrite;
+    breakdown.cacheRead += cacheRead;
+    if (Number.isFinite(cents)) costCents += cents;
+    if (rowTokens > 0 || Number.isFinite(cents)) {
+      models.push({
+        model: String(row?.modelIntent || 'unknown'),
+        tokens: rowTokens,
+        costUsd: Number.isFinite(cents) ? roundCents(cents / 100) : 0
+      });
+    }
+  }
+
+  const totalCostCents = Number(raw?.totalCostCents);
+  if (Number.isFinite(totalCostCents)) costCents = totalCostCents;
+
+  if (tokens === 0 && costCents === 0 && models.length === 0)
+    return null;
+
+  models.sort((a, b) => b.costUsd - a.costUsd || b.tokens - a.tokens);
+  return {
+    tokens,
+    costUsd: roundCents(costCents / 100),
+    unpricedTokens: 0,
+    breakdown,
+    models,
+    sessions: []
+  };
 }
 
 // ISO ou epoch em ms (às vezes string), como no DashboardService.
@@ -267,6 +336,81 @@ export async function discoverCursorAccounts(configDir = configHome()) {
   });
 }
 
+async function cursorUserId(auth) {
+  const cookie = sessionCookie(auth.accessToken);
+  if (!cookie) return 0;
+  try {
+    const me = await fetchJson('https://cursor.com/api/auth/me', {
+      accept: 'application/json',
+      cookie,
+      'user-agent': USER_AGENT
+    });
+    const id = Number(me?.id);
+    return Number.isFinite(id) && id > 0 ? id : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function fetchAggregated(auth, startMs, endMs) {
+  const userId = await cursorUserId(auth);
+  const body = JSON.stringify({
+    teamId: 0,
+    userId,
+    startDate: startMs,
+    endDate: endMs
+  });
+  let lastError = null;
+
+  try {
+    return await fetchJson(AGGREGATED_URL, {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      authorization: `Bearer ${auth.accessToken}`,
+      'user-agent': 'tokenbar/0.1'
+    }, { method: 'POST', body });
+  } catch (error) {
+    lastError = error;
+  }
+
+  const cookie = sessionCookie(auth.accessToken);
+  if (cookie) {
+    try {
+      return await fetchJson(AGGREGATED_WEB_URL, {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        cookie,
+        'user-agent': USER_AGENT
+      }, { method: 'POST', body });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new CollectError('error', t('cursor.noLimits'));
+}
+
+// Quando o painel manda gasto do ciclo em centavos (planos com totalSpend).
+export function mapPlanSpend(usage) {
+  const plan = usage?.individualUsage?.plan ?? usage?.individual_usage?.plan ?? usage?.planUsage;
+  if (!plan || typeof plan !== 'object') return null;
+  const spendCents = Number(plan.totalSpend ?? plan.total_spend);
+  const tokens = Number(plan.used);
+  if (!Number.isFinite(spendCents) && !Number.isFinite(tokens)) return null;
+  const costUsd = Number.isFinite(spendCents) ? Math.round(spendCents) / 100 : null;
+  // Só devolve custo quando o painel manda centavos; "used" sem totalSpend
+  // em alguns planos é franquia de requests, não dólar.
+  if (costUsd === null) return null;
+  return {
+    tokens: Number.isFinite(tokens) && tokens > 0 ? tokens : 0,
+    costUsd,
+    unpricedTokens: 0,
+    breakdown: null,
+    models: [],
+    sessions: []
+  };
+}
+
 function cursorProvider(account) {
   return {
     id: account.id,
@@ -278,7 +422,7 @@ function cursorProvider(account) {
       return Boolean(await account.readAuth().catch(() => null));
     },
     // Cotas do ciclo de cobrança: a cada 5 min basta.
-    minIntervalMs: 5 * 60 * 1000,
+    minIntervalMs: USAGE_MIN_INTERVAL_MS,
 
     async fetchLimits() {
       if (account.fetchError) throw account.fetchError;
@@ -333,7 +477,39 @@ function cursorProvider(account) {
       return { plan, windows };
     },
 
-    usageToday: async () => null
+    // Gasto e tokens de hoje: painel do Cursor (não a tabela local de preços).
+    // Em planos Premium semanais a API às vezes só manda % — aí fica null.
+    async usageToday(usageCache, now = new Date()) {
+      if (account.fetchError) return null;
+      const { startMs, endMs } = localDayBoundsMs(now);
+      const remote = (usageCache.remote ??= {});
+      const hit = remote[account.id];
+      if (
+        hit &&
+        hit.startMs === startMs &&
+        Number.isFinite(hit.at) &&
+        now.getTime() - hit.at < USAGE_MIN_INTERVAL_MS
+      ) {
+        return hit.usage;
+      }
+
+      let auth;
+      try {
+        auth = await account.readAuth();
+      } catch {
+        return hit?.usage ?? null;
+      }
+      if (!auth?.accessToken) return hit?.usage ?? null;
+
+      try {
+        const usage = mapAggregatedUsage(await fetchAggregated(auth, startMs, endMs));
+        remote[account.id] = { at: now.getTime(), startMs, usage };
+        return usage;
+      } catch {
+        // Mantém o último valor do dia se a API falhar no meio do intervalo.
+        return hit?.usage ?? null;
+      }
+    }
   };
 }
 
