@@ -289,7 +289,7 @@ painel sem sair, `scripts/preview.sh` abre um shell aninhado numa janela.
 ## Desenvolvimento
 
 ```sh
-npm test                    # 74 testes em Node + 11 em Python (bandeja)
+npm test                    # 77 testes em Node + 11 em Python (bandeja)
 scripts/ui-test.sh          # 58 verificações num GNOME Shell headless de verdade
 scripts/tray-test.sh        # 22 verificações da bandeja, do painel e do modo dock pelo D-Bus, no mesmo esquema isolado
 scripts/gjs-test.sh         # plataforma GJS contra um servidor local de mentira + paridade Node/GJS

@@ -67,6 +67,7 @@ export default class TokenBarExtension extends Extension {
             'changed::update-check', () => this._writeCollectorConfig(),
             'changed::disabled-providers', () => this._writeCollectorConfig(),
             'changed::bar-hidden-providers', () => this._writeCollectorConfig(),
+            'changed::provider-order', () => this._writeCollectorConfig(),
             'changed::show-remaining', () => this._writeCollectorConfig(),
             'changed::warn-threshold', () => this._writeCollectorConfig(),
             'changed::crit-threshold', () => this._writeCollectorConfig(),
@@ -236,6 +237,7 @@ export default class TokenBarExtension extends Extension {
         const config = {
             intervalSec: this._settings.get_int('collector-interval'),
             disabledProviders: this._settings.get_strv('disabled-providers'),
+            providerOrder: this._settings.get_strv('provider-order'),
             // O coletor escreve erros e rótulos no mesmo idioma da interface.
             language: getLanguage(),
             updateCheck: this._settings.get_boolean('update-check'),

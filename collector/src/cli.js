@@ -48,10 +48,14 @@ export async function run(args, io) {
     }
   }
 
-  const cycle = async () => {
+  const forceOnce = args.includes('--once') || args.includes('--check-update');
+  const cycle = async ({ forceProviders = false } = {}) => {
     const config = await loadConfig();
     try {
-      await collectOnce(config, { forceUpdateCheck: args.includes('--check-update') });
+      await collectOnce(config, {
+        forceUpdateCheck: args.includes('--check-update'),
+        forceProviders
+      });
       return { config, ok: true };
     } catch (error) {
       platform.log(`tokenbar: ${t('log.stateWrite', { code: error?.code || error?.name || 'error' })}`);
@@ -59,8 +63,8 @@ export async function run(args, io) {
     }
   };
 
-  if (args.includes('--once') || args.includes('--check-update')) {
-    const { ok } = await cycle();
+  if (forceOnce) {
+    const { ok } = await cycle({ forceProviders: true });
     return ok ? 0 : 1;
   }
 

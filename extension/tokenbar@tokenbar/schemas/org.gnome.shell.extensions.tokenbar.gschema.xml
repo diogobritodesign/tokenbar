@@ -9,6 +9,10 @@
       <default>[]</default>
       <summary>Contas que não aparecem na barra superior</summary>
     </key>
+    <key name="provider-order" type="as">
+      <default>[]</default>
+      <summary>Ordem das contas na barra e no painel</summary>
+    </key>
     <key name="bar-mode" type="s">
       <choices>
         <choice value="full"/>

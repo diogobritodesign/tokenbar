@@ -151,6 +151,7 @@ WINDOW_STRINGS = {
     'refresh_failed': ('Falhou — tentar de novo', 'Failed — try again'),
     'settings': ('Configurações', 'Settings'), 'back': ('Voltar', 'Back'),
     's_accounts': ('Contas', 'Accounts'), 's_collect': ('coletar', 'collect'),
+    's_move': ('ordem', 'order'),
     's_display': ('Exibição', 'Display'), 's_language': ('Idioma', 'Language'),
     'lang_auto': ('Sistema', 'System'), 'lang_pt': ('Português', 'Português'), 'lang_en': ('English', 'English'),
     's_percent': ('Percentuais', 'Percentages'), 'pct_left': ('Restante', 'Left'), 'pct_used': ('Usado', 'Used'),
@@ -589,7 +590,8 @@ class PanelWindow:
         self.words = Words(self.options['language'])
 
     def providers(self):
-        return [p for p in (self.state or {}).get('providers', []) if isinstance(p, dict) and p.get('id')]
+        items = [p for p in (self.state or {}).get('providers', []) if isinstance(p, dict) and p.get('id')]
+        return core.apply_provider_order(items, (self.options or {}).get('provider_order') or [])
 
     def level(self, provider):
         return core.level_of(provider, self.options['warn'], self.options['crit'])
@@ -888,14 +890,24 @@ class PanelWindow:
         accounts.append(label(w('s_accounts'), 'group-title'))
         legend = box(False, 8)
         legend.append(label('', hexpand=True))
+        legend.append(label(w('s_move'), 'muted', 'tiny'))
         legend.append(label(w('s_collect'), 'muted', 'tiny'))
         accounts.append(legend)
         disabled = set(config.get('disabledProviders') or [])
         known = (self.state or {}).get('accounts') or [{'id': p['id'], 'label': p.get('label'), 'name': p.get('name')} for p in self.providers()]
-        for account in known:
+        known = core.apply_provider_order(known, config.get('providerOrder') or [])
+        for index, account in enumerate(known):
             row = box(False, 8)
             row.append(label(account.get('label') or account['id'], 'tag'))
             row.append(label(account.get('name') or '', hexpand=True))
+            movers = box(False, 2)
+            up = text_button('↑', lambda ident=account['id']: self.move_account(ident, -1), 'step')
+            up.set_sensitive(index > 0)
+            down = text_button('↓', lambda ident=account['id']: self.move_account(ident, 1), 'step')
+            down.set_sensitive(index < len(known) - 1)
+            movers.append(up)
+            movers.append(down)
+            row.append(movers)
             switch = Gtk.Switch(active=account['id'] not in disabled, valign=Gtk.Align.CENTER)
             switch.connect('notify::active', lambda sw, _p, ident=account['id']: self.set_collect(ident, sw.get_active()))
             row.append(switch)
@@ -1008,6 +1020,23 @@ class PanelWindow:
             disabled.append(ident)
         config['disabledProviders'] = disabled
         self.write_config(config)
+
+    def move_account(self, ident, direction):
+        config = self.read_config()
+        known = (self.state or {}).get('accounts') or [{'id': p['id']} for p in self.providers()]
+        ids = [str(account['id']) for account in known]
+        order = [item for item in (config.get('providerOrder') or []) if item in ids]
+        for item in ids:
+            if item not in order:
+                order.append(item)
+        index = order.index(ident) if ident in order else -1
+        next_index = index + direction
+        if index < 0 or next_index < 0 or next_index >= len(order):
+            return
+        order[index], order[next_index] = order[next_index], order[index]
+        config['providerOrder'] = order
+        self.write_config(config)
+        GLib.idle_add(lambda: (self.render(), False)[1])
 
     # ---- ações
 

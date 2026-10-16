@@ -21,10 +21,10 @@ function retryAfterMs(response) {
   return Math.min(Math.max(fromHeader, RATE_LIMIT_BACKOFF_MS), RATE_LIMIT_BACKOFF_MAX_MS);
 }
 
-export async function fetchJson(url, headers) {
+export async function fetchJson(url, headers, { method = 'GET', body } = {}) {
   let response;
   try {
-    response = await platform.request({ url, headers, timeoutMs: NETWORK_TIMEOUT_MS });
+    response = await platform.request({ url, headers, method, body, timeoutMs: NETWORK_TIMEOUT_MS });
   } catch (error) {
     if (platform.env().TOKENBAR_DEBUG) platform.log(`tokenbar: debug: ${url.replace(/\?.*$/, '')}: ${error?.message} ${String(error?.stack ?? '').split('\n')[0]}`);
     throw new CollectError('error', t(error?.code === 'timeout' ? 'net.timeout' : 'net.offline'));

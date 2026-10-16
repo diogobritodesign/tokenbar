@@ -5,7 +5,10 @@ import { isDirectory } from '../files.js';
 import { CollectError, fetchJson, NETWORK_TIMEOUT_MS } from '../http.js';
 import { t } from '../i18n.js';
 
-const USAGE_URL = 'https://cursor.com/api/usage-summary';
+// Painel novo (Premium / pool semanal): DashboardService com o token do IDE.
+// usage-summary do site ainda devolve o ciclo mensal antigo (muitas vezes 0%).
+const PERIOD_URL = 'https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage';
+const SUMMARY_URL = 'https://cursor.com/api/usage-summary';
 const hint = () => t('cursor.hint');
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
 
@@ -52,13 +55,40 @@ export function planLabel(membershipType) {
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : null;
 }
 
+// ISO ou epoch em ms (às vezes string), como no DashboardService.
+export function cycleMs(value) {
+  if (value == null || value === '') return NaN;
+  if (typeof value === 'number') return value > 1e11 ? value : value * 1000;
+  const trimmed = String(value).trim();
+  if (/^\d+$/.test(trimmed)) {
+    const number = Number(trimmed);
+    return number > 1e11 ? number : number * 1000;
+  }
+  return Date.parse(trimmed);
+}
+
+// Unifica a resposta do DashboardService com a do usage-summary.
+export function normalizeCursorUsage(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  if (raw.planUsage && !raw.individualUsage) {
+    return {
+      billingCycleStart: raw.billingCycleStart,
+      billingCycleEnd: raw.billingCycleEnd,
+      membershipType: raw.membershipType,
+      isUnlimited: raw.isUnlimited,
+      individualUsage: { plan: raw.planUsage, onDemand: raw.onDemand }
+    };
+  }
+  return raw;
+}
+
 export function mapWindows(usage) {
-  const startMs = Date.parse(usage?.billingCycleStart || usage?.billing_cycle_start || '');
-  const endMs = Date.parse(usage?.billingCycleEnd || usage?.billing_cycle_end || '');
+  const startMs = cycleMs(usage?.billingCycleStart || usage?.billing_cycle_start);
+  const endMs = cycleMs(usage?.billingCycleEnd || usage?.billing_cycle_end);
   const windowMinutes = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
     ? Math.round((endMs - startMs) / 60_000)
     : null;
-  // Ciclo de ~7 dias = semanal; o resto trata como mensalidade do plano.
+  // Ciclo de ~7 dias = semanal (pool do Premium); o resto é mensal.
   const weekly = windowMinutes !== null && windowMinutes <= 8 * 24 * 60;
   const resetsAt = Number.isFinite(endMs)
     ? new Date(Math.round(endMs / 1000) * 1000).toISOString().replace('.000Z', 'Z')
@@ -256,24 +286,45 @@ function cursorProvider(account) {
       if (!auth?.accessToken) {
         throw new CollectError('unauthorized', t('cursor.noCredentials', { hint: hint() }));
       }
-      const cookie = sessionCookie(auth.accessToken);
-      if (!cookie) {
-        throw new CollectError('unauthorized', t('cursor.badToken', { hint: hint() }));
-      }
       const localPlan = planLabel(auth.membershipType);
-      let usage;
+      let usage = null;
+      let lastError = null;
+
+      // 1) Pool semanal do app (o mesmo número do painel Plan & Usage).
       try {
-        usage = await fetchJson(USAGE_URL, {
+        usage = normalizeCursorUsage(await fetchJson(PERIOD_URL, {
           accept: 'application/json',
-          cookie,
-          'user-agent': USER_AGENT
-        });
+          'content-type': 'application/json',
+          authorization: `Bearer ${auth.accessToken}`,
+          'user-agent': 'tokenbar/0.1'
+        }, { method: 'POST', body: '{}' }));
       } catch (error) {
-        if (error instanceof CollectError && error.status === 'unauthorized') {
-          error.message = t('cursor.refused', { hint: hint() });
-        }
-        throw Object.assign(error, { plan: localPlan });
+        lastError = error;
       }
+
+      // 2) Fallback: usage-summary do site (ciclo mensal legado).
+      if (!usage || mapWindows(usage).length === 0) {
+        const cookie = sessionCookie(auth.accessToken);
+        if (cookie) {
+          try {
+            usage = normalizeCursorUsage(await fetchJson(SUMMARY_URL, {
+              accept: 'application/json',
+              cookie,
+              'user-agent': USER_AGENT
+            }));
+          } catch (error) {
+            lastError = error;
+          }
+        }
+      }
+
+      if (!usage) {
+        if (lastError instanceof CollectError && lastError.status === 'unauthorized') {
+          lastError.message = t('cursor.refused', { hint: hint() });
+        }
+        throw Object.assign(lastError || new CollectError('error', t('cursor.noLimits')), { plan: localPlan });
+      }
+
       const plan = planLabel(usage?.membershipType) || localPlan;
       const windows = mapWindows(usage);
       if (windows.length === 0) {

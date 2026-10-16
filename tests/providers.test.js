@@ -134,7 +134,7 @@ test('Cursor: cookie de sessão e id WorkOS a partir do JWT', () => {
   assert.equal(cursor.sessionCookie('nao-e-jwt'), null);
 });
 
-test('Cursor: ciclo mensal, ilimitado e on-demand', () => {
+test('Cursor: ciclo mensal, ilimitado, on-demand e pool semanal em epoch ms', () => {
   assert.deepEqual(cursor.mapWindows({
     isUnlimited: false,
     billingCycleStart: '2026-10-01T00:00:00.000Z',
@@ -159,6 +159,15 @@ test('Cursor: ciclo mensal, ilimitado e on-demand', () => {
       onDemand: { enabled: true, used: 25, limit: 100 }
     }
   }).map((w) => [w.kind, w.label, w.usedPct]), [['weekly', 'Semana', 10], ['weekly', 'Extra', 25]]);
+  // Resposta do DashboardService (Premium): epoch em ms + planUsage no topo.
+  const weekly = cursor.mapWindows(cursor.normalizeCursorUsage({
+    billingCycleStart: '1792084777248',
+    billingCycleEnd: '1792689577248',
+    planUsage: { totalPercentUsed: 8.277, autoPercentUsed: 8.277, apiPercentUsed: 0 }
+  }));
+  assert.equal(weekly[0].kind, 'weekly');
+  assert.equal(weekly[0].label, 'Semana');
+  assert.equal(weekly[0].usedPct, 8);
   assert.equal(cursor.planLabel('premium'), 'Premium');
   assert.equal(cursor.planLabel(''), null);
 });

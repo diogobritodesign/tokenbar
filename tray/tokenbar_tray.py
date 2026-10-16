@@ -174,12 +174,20 @@ def load_options(config_path):
         'currency': bar.get('currency') if bar.get('currency') in ('brl', 'usd') else ('brl' if language == 'pt' else 'usd'),
         'label': bar.get('label') if bar.get('label') in ('critical', 'all', 'none') else 'critical',
         'hidden_providers': [str(item) for item in hidden],
+        'provider_order': [str(item) for item in raw.get('providerOrder', [])] if isinstance(raw.get('providerOrder'), list) else [],
         'dock': raw.get('dock') is True,
         'notifications': raw.get('notifications') is not False,
         'update_check': raw.get('updateCheck') is not False,
         'budget_daily': int(raw.get('budgetDaily', 0)) if isinstance(raw.get('budgetDaily', 0), (int, float)) else 0,
         'budget_monthly': int(raw.get('budgetMonthly', 0)) if isinstance(raw.get('budgetMonthly', 0), (int, float)) else 0,
     }
+
+
+def apply_provider_order(items, order):
+    if not items or len(items) < 2 or not order:
+        return items
+    rank = {str(ident): index for index, ident in enumerate(order)}
+    return sorted(items, key=lambda item: rank.get(str(item.get('id')), len(order)))
 
 
 def desktop_notify(title, body):
@@ -311,8 +319,10 @@ class View:
         self.state = state
         self.options = options
         hidden = set(options.get('hidden_providers') or [])
-        if state and isinstance(state.get('providers'), list) and hidden:
-            state = {**state, 'providers': [p for p in state['providers'] if p.get('id') not in hidden]}
+        if state and isinstance(state.get('providers'), list):
+            providers = [p for p in state['providers'] if isinstance(p, dict) and p.get('id') and p.get('id') not in hidden]
+            providers = apply_provider_order(providers, options.get('provider_order') or [])
+            state = {**state, 'providers': providers}
             self.state = state
         self.now = time.time() if now is None else now
         self.t = Text(options['language'])

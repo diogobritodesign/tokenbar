@@ -23,6 +23,24 @@ Gio._promisify(Gio.File.prototype, 'load_contents_async');
 Gio._promisify(Gio.Subprocess.prototype, 'wait_async');
 
 const POLL_SECONDS = 30;
+
+function applyProviderOrder(items, order) {
+    if (!Array.isArray(items) || items.length < 2 || !Array.isArray(order) || order.length === 0)
+        return items;
+    const rank = new Map(order.map((id, index) => [String(id), index]));
+    return [...items].sort((a, b) => (rank.has(a?.id) ? rank.get(a.id) : order.length) - (rank.has(b?.id) ? rank.get(b.id) : order.length));
+}
+
+function mergeProviderOrder(order, ids) {
+    const known = ids.map(String);
+    const present = new Set(known);
+    const kept = (Array.isArray(order) ? order.map(String) : []).filter(id => present.has(id));
+    for (const id of known) {
+        if (!kept.includes(id))
+            kept.push(id);
+    }
+    return kept;
+}
 const OPEN_TICK_SECONDS = 5;
 const RELOAD_DEBOUNCE_MS = 250;
 // Altura ocupada por cabeçalho, rodapé, margens e sombra do painel, em px de CSS.
@@ -333,14 +351,16 @@ class TokenBarIndicator extends PanelMenu.Button {
         const accounts = this._settingsCard(t('set.accounts'));
         const legend = new St.BoxLayout({style_class: 'tokenbar-set-row'});
         legend.add_child(new St.Widget({x_expand: true}));
+        legend.add_child(columnTitle(t('set.move')));
         legend.add_child(columnTitle(t('set.collect')));
         legend.add_child(columnTitle(t('set.inBar')));
         accounts.add_child(legend);
         // As contas vêm do coletor (as que existem nesta máquina); a lista
         // fixa só serve enquanto ele ainda não gravou nada.
-        const accountList = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
+        const rawAccounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
             ? this._state.accounts : PROVIDERS;
-        for (const provider of accountList) {
+        const accountList = applyProviderOrder(rawAccounts, settings.get_strv('provider-order'));
+        accountList.forEach((provider, index) => {
             const row = new St.BoxLayout({style_class: 'tokenbar-set-row'});
             row.add_child(new St.Label({
                 style_class: 'tokenbar-tag',
@@ -352,10 +372,28 @@ class TokenBarIndicator extends PanelMenu.Button {
                 x_expand: true,
                 y_align: Clutter.ActorAlign.CENTER,
             }));
+            const movers = new St.BoxLayout({style_class: 'tokenbar-set-column', y_align: Clutter.ActorAlign.CENTER});
+            const up = new St.Button({
+                style_class: 'tokenbar-step',
+                label: '↑',
+                can_focus: true,
+                reactive: index > 0,
+            });
+            up.connect('clicked', () => this._moveProvider(provider.id, -1));
+            const down = new St.Button({
+                style_class: 'tokenbar-step',
+                label: '↓',
+                can_focus: true,
+                reactive: index < accountList.length - 1,
+            });
+            down.connect('clicked', () => this._moveProvider(provider.id, 1));
+            movers.add_child(up);
+            movers.add_child(down);
+            row.add_child(movers);
             row.add_child(listSwitch('disabled-providers', provider.id));
             row.add_child(listSwitch('bar-hidden-providers', provider.id));
             accounts.add_child(row);
-        }
+        });
 
         const display = this._settingsCard(t('set.display'));
         display.add_child(labeled(t('set.language'), makeChoice(localized(LANGUAGE_MODES), settings.get_string('language'),
@@ -537,8 +575,22 @@ class TokenBarIndicator extends PanelMenu.Button {
     }
 
     _providers() {
-        const providers = this._state?.providers ?? [];
-        return providers.filter(p => p && typeof p.id === 'string');
+        const providers = (this._state?.providers ?? []).filter(p => p && typeof p.id === 'string');
+        return applyProviderOrder(providers, this._settings.get_strv('provider-order'));
+    }
+
+    _moveProvider(id, direction) {
+        const accounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
+            ? this._state.accounts : PROVIDERS;
+        const ids = accounts.map(account => account.id);
+        const order = mergeProviderOrder(this._settings.get_strv('provider-order'), ids);
+        const index = order.indexOf(id);
+        const next = index + direction;
+        if (index < 0 || next < 0 || next >= order.length)
+            return;
+        [order[index], order[next]] = [order[next], order[index]];
+        this._settings.set_strv('provider-order', order);
+        this._queueRender();
     }
 
     _level(provider) {

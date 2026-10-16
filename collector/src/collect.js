@@ -10,6 +10,7 @@ import { claudeProviders } from './providers/claude.js';
 import { codexProviders } from './providers/codex.js';
 import { copilotProviders } from './providers/copilot.js';
 import { cursorProviders } from './providers/cursor.js';
+import { applyProviderOrder } from './order.js';
 import { serviceStatus } from './status.js';
 import { checkForUpdate } from './update.js';
 import { localDayKey } from './usage/claudeTranscripts.js';
@@ -60,6 +61,8 @@ export async function loadConfig() {
       ? Math.min(Math.max(Math.round(interval), MIN_INTERVAL_SEC), MAX_INTERVAL_SEC)
       : DEFAULT_INTERVAL_SEC,
     disabledProviders: Array.isArray(raw.disabledProviders) ? raw.disabledProviders.map(String) : [],
+    // Ordem das contas na barra/painel; vazio = ordem de descoberta.
+    providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.map(String) : [],
     // null = seguir o idioma do sistema
     language: LANGUAGES.includes(raw.language) ? raw.language : null,
     // Checagem diária de versão nova no GitHub; ligada por padrão.
@@ -93,7 +96,7 @@ function isoSeconds(ms) {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-async function collectProvider(provider, previous, usageCache, now) {
+async function collectProvider(provider, previous, usageCache, now, { force = false } = {}) {
   const result = {
     id: provider.id,
     label: provider.label,
@@ -124,8 +127,10 @@ async function collectProvider(provider, previous, usageCache, now) {
   }
 
   // Cotas que mudam devagar (ex.: mensais) não precisam de consulta a cada ciclo.
+  // --once / Atualizar forçam a consulta (--force).
   const checkedAt = Date.parse(previous?.checkedAt);
   if (
+    !force &&
     provider.minIntervalMs &&
     previous?.status === 'ok' &&
     Number.isFinite(checkedAt) &&
@@ -170,7 +175,7 @@ async function collectProvider(provider, previous, usageCache, now) {
   return result;
 }
 
-export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
+export async function collectOnce(config, { forceUpdateCheck = false, forceProviders = false } = {}) {
   setLanguage(config.language);
   const now = new Date();
   const previousState = await readJson(stateFile());
@@ -179,15 +184,16 @@ export async function collectOnce(config, { forceUpdateCheck = false } = {}) {
   );
   const usageCache = await loadUsageCache(now);
 
-  const present = await listProviders();
+  const present = applyProviderOrder(await listProviders(), config.providerOrder);
   const active = present.filter((provider) => !config.disabledProviders.includes(provider.id));
 
-  const [providers, fx, services, update] = await Promise.all([
-    Promise.all(active.map((provider) => collectProvider(provider, previousById.get(provider.id), usageCache, now))),
+  const [collected, fx, services, update] = await Promise.all([
+    Promise.all(active.map((provider) => collectProvider(provider, previousById.get(provider.id), usageCache, now, { force: forceProviders }))),
     usdBrlRate(now.getTime()).catch(() => null),
     serviceStatus(now.getTime()).catch(() => []),
     checkForUpdate({ enabled: config.updateCheck, force: forceUpdateCheck, now: now.getTime() }).catch(() => null)
   ]);
+  const providers = applyProviderOrder(collected, config.providerOrder);
 
   await applyRecentPace(providers, now.getTime());
 

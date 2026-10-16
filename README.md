@@ -307,7 +307,7 @@ whether a logout is needed. To try panel changes without logging out,
 ## Development
 
 ```sh
-npm test                    # 74 Node tests + 11 Python tests (tray)
+npm test                    # 77 Node tests + 11 Python tests (tray)
 scripts/ui-test.sh          # 58 checks against a real headless GNOME Shell
 scripts/tray-test.sh        # 22 checks of the tray icon, its panel and the dock mode over D-Bus, same isolated setup
 scripts/gjs-test.sh         # GJS platform against a local fake server + Node/GJS parity

@@ -170,8 +170,9 @@ class OptionsTests(unittest.TestCase):
             options = tray.load_options(path)
             self.assertEqual(options, {
                 'language': 'en', 'show_remaining': False, 'warn': 50, 'crit': 70,
-                'currency': 'usd', 'label': 'all', 'hidden_providers': [], 'dock': False,
-                'notifications': True, 'update_check': True, 'budget_daily': 0, 'budget_monthly': 0,
+                'currency': 'usd', 'label': 'all', 'hidden_providers': [], 'provider_order': [],
+                'dock': False, 'notifications': True, 'update_check': True,
+                'budget_daily': 0, 'budget_monthly': 0,
             })
             with open(path, 'w', encoding='utf-8') as file:
                 file.write('{ quebrado')
