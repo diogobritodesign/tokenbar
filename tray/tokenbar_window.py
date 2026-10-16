@@ -29,7 +29,7 @@ except (OSError, ImportError, ValueError):
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -100,6 +100,9 @@ button.tb:hover { background-color: rgba(255, 255, 255, 0.14); color: #ffffff; }
 button.tb:active { background-color: #a97cf8; color: #0f0f10; }
 button.step { min-width: 24px; min-height: 24px; padding: 0; border-radius: 12px; background-color: rgba(255, 255, 255, 0.1); color: #ffffff; border: none; box-shadow: none; }
 button.step:hover { background-color: rgba(255, 255, 255, 0.18); }
+.account-row { border-radius: 10px; padding: 2px 0; }
+.account-row.drop-hover { background-color: rgba(169, 124, 248, 0.18); }
+.account-row.dragging { opacity: 0.55; }
 switch { border-radius: 13px; background-color: rgba(255, 255, 255, 0.12); border: none; min-height: 20px; }
 switch:checked { background-color: #a97cf8; }
 switch slider { min-width: 14px; min-height: 14px; border-radius: 7px; background-color: #8e8e93; box-shadow: none; border: none; margin: 3px; }
@@ -151,7 +154,7 @@ WINDOW_STRINGS = {
     'refresh_failed': ('Falhou — tentar de novo', 'Failed — try again'),
     'settings': ('Configurações', 'Settings'), 'back': ('Voltar', 'Back'),
     's_accounts': ('Contas', 'Accounts'), 's_collect': ('coletar', 'collect'),
-    's_move': ('ordem', 'order'),
+    's_drag': ('Arraste para reordenar', 'Drag to reorder'),
     's_display': ('Exibição', 'Display'), 's_language': ('Idioma', 'Language'),
     'lang_auto': ('Sistema', 'System'), 'lang_pt': ('Português', 'Português'), 'lang_en': ('English', 'English'),
     's_percent': ('Percentuais', 'Percentages'), 'pct_left': ('Restante', 'Left'), 'pct_used': ('Usado', 'Used'),
@@ -888,29 +891,25 @@ class PanelWindow:
 
         accounts = box(True, 12, 'card')
         accounts.append(label(w('s_accounts'), 'group-title'))
+        accounts.append(label(w('s_drag'), 'muted', 'tiny'))
         legend = box(False, 8)
         legend.append(label('', hexpand=True))
-        legend.append(label(w('s_move'), 'muted', 'tiny'))
         legend.append(label(w('s_collect'), 'muted', 'tiny'))
         accounts.append(legend)
         disabled = set(config.get('disabledProviders') or [])
         known = (self.state or {}).get('accounts') or [{'id': p['id'], 'label': p.get('label'), 'name': p.get('name')} for p in self.providers()]
         known = core.apply_provider_order(known, config.get('providerOrder') or [])
-        for index, account in enumerate(known):
-            row = box(False, 8)
-            row.append(label(account.get('label') or account['id'], 'tag'))
-            row.append(label(account.get('name') or '', hexpand=True))
-            movers = box(False, 2)
-            up = text_button('↑', lambda ident=account['id']: self.move_account(ident, -1), 'step')
-            up.set_sensitive(index > 0)
-            down = text_button('↓', lambda ident=account['id']: self.move_account(ident, 1), 'step')
-            down.set_sensitive(index < len(known) - 1)
-            movers.append(up)
-            movers.append(down)
-            row.append(movers)
+        for account in known:
+            row = box(False, 8, 'account-row')
+            handle = box(False, 8, 'account-handle', hexpand=True)
+            handle.append(label(account.get('label') or account['id'], 'tag'))
+            handle.append(label(account.get('name') or '', hexpand=True))
+            handle.set_cursor(Gdk.Cursor.new_from_name('grab'))
+            row.append(handle)
             switch = Gtk.Switch(active=account['id'] not in disabled, valign=Gtk.Align.CENTER)
             switch.connect('notify::active', lambda sw, _p, ident=account['id']: self.set_collect(ident, sw.get_active()))
             row.append(switch)
+            self._attach_account_drag(handle, row, account['id'])
             accounts.append(row)
         cards.append(accounts)
 
@@ -1021,7 +1020,48 @@ class PanelWindow:
         config['disabledProviders'] = disabled
         self.write_config(config)
 
-    def move_account(self, ident, direction):
+    def _attach_account_drag(self, handle, row, ident):
+        source = Gtk.DragSource.new()
+        source.set_actions(Gdk.DragAction.MOVE)
+
+        def prepare(_src, _x, _y):
+            return Gdk.ContentProvider.new_for_value(str(ident))
+
+        def drag_begin(src, _drag):
+            row.add_css_class('dragging')
+            src.set_icon(Gtk.WidgetPaintable.new(handle), 0, 0)
+
+        def drag_end(_src, _drag, _delete):
+            row.remove_css_class('dragging')
+
+        source.connect('prepare', prepare)
+        source.connect('drag-begin', drag_begin)
+        source.connect('drag-end', drag_end)
+        handle.add_controller(source)
+
+        drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
+
+        def on_enter(_target, _x, _y):
+            row.add_css_class('drop-hover')
+            return Gdk.DragAction.MOVE
+
+        def on_leave(_target):
+            row.remove_css_class('drop-hover')
+
+        def on_drop(_target, value, _x, y):
+            row.remove_css_class('drop-hover')
+            height = max(row.get_height(), 1)
+            self.place_account(str(value), ident, after=y > height / 2)
+            return True
+
+        drop.connect('enter', on_enter)
+        drop.connect('leave', on_leave)
+        drop.connect('drop', on_drop)
+        row.add_controller(drop)
+
+    def place_account(self, drag_id, target_id, after=False):
+        if drag_id == target_id:
+            return
         config = self.read_config()
         known = (self.state or {}).get('accounts') or [{'id': p['id']} for p in self.providers()]
         ids = [str(account['id']) for account in known]
@@ -1029,11 +1069,13 @@ class PanelWindow:
         for item in ids:
             if item not in order:
                 order.append(item)
-        index = order.index(ident) if ident in order else -1
-        next_index = index + direction
-        if index < 0 or next_index < 0 or next_index >= len(order):
+        if drag_id not in order or target_id not in order:
             return
-        order[index], order[next_index] = order[next_index], order[index]
+        order.remove(drag_id)
+        to = order.index(target_id)
+        if after:
+            to += 1
+        order.insert(to, drag_id)
         config['providerOrder'] = order
         self.write_config(config)
         GLib.idle_add(lambda: (self.render(), False)[1])

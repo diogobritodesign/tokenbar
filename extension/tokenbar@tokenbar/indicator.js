@@ -6,6 +6,7 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
@@ -349,9 +350,12 @@ class TokenBarIndicator extends PanelMenu.Button {
         });
 
         const accounts = this._settingsCard(t('set.accounts'));
+        accounts.add_child(new St.Label({
+            style_class: 'tokenbar-muted tokenbar-tiny',
+            text: t('set.dragHint'),
+        }));
         const legend = new St.BoxLayout({style_class: 'tokenbar-set-row'});
         legend.add_child(new St.Widget({x_expand: true}));
-        legend.add_child(columnTitle(t('set.move')));
         legend.add_child(columnTitle(t('set.collect')));
         legend.add_child(columnTitle(t('set.inBar')));
         accounts.add_child(legend);
@@ -360,8 +364,13 @@ class TokenBarIndicator extends PanelMenu.Button {
         const rawAccounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
             ? this._state.accounts : PROVIDERS;
         const accountList = applyProviderOrder(rawAccounts, settings.get_strv('provider-order'));
-        accountList.forEach((provider, index) => {
-            const row = new St.BoxLayout({style_class: 'tokenbar-set-row'});
+        const accountRows = [];
+        accountList.forEach(provider => {
+            const row = new St.BoxLayout({
+                style_class: 'tokenbar-set-row',
+                reactive: true,
+                track_hover: true,
+            });
             row.add_child(new St.Label({
                 style_class: 'tokenbar-tag',
                 text: provider.label,
@@ -372,26 +381,38 @@ class TokenBarIndicator extends PanelMenu.Button {
                 x_expand: true,
                 y_align: Clutter.ActorAlign.CENTER,
             }));
-            const movers = new St.BoxLayout({style_class: 'tokenbar-set-column', y_align: Clutter.ActorAlign.CENTER});
-            const up = new St.Button({
-                style_class: 'tokenbar-step',
-                label: '↑',
-                can_focus: true,
-                reactive: index > 0,
-            });
-            up.connect('clicked', () => this._moveProvider(provider.id, -1));
-            const down = new St.Button({
-                style_class: 'tokenbar-step',
-                label: '↓',
-                can_focus: true,
-                reactive: index < accountList.length - 1,
-            });
-            down.connect('clicked', () => this._moveProvider(provider.id, 1));
-            movers.add_child(up);
-            movers.add_child(down);
-            row.add_child(movers);
             row.add_child(listSwitch('disabled-providers', provider.id));
             row.add_child(listSwitch('bar-hidden-providers', provider.id));
+            const clearHover = () => {
+                for (const entry of accountRows)
+                    entry.remove_style_class_name('tokenbar-drop-hover');
+            };
+            row._delegate = {
+                providerId: provider.id,
+                getDragActor: () => new St.Label({
+                    style_class: 'tokenbar-drag-actor',
+                    text: `${provider.label}  ${provider.name}`,
+                }),
+                getDragActorSource: () => row,
+                handleDragOver: (source, _actor, _x, _y, _time) => {
+                    if (!source?.providerId || source.providerId === provider.id) {
+                        row.remove_style_class_name('tokenbar-drop-hover');
+                        return DND.DragMotionResult.CONTINUE;
+                    }
+                    row.add_style_class_name('tokenbar-drop-hover');
+                    return DND.DragMotionResult.MOVE_DROP;
+                },
+                acceptDrop: (source, _actor, _x, y, _time) => {
+                    clearHover();
+                    if (!source?.providerId || source.providerId === provider.id)
+                        return false;
+                    this._placeProvider(source.providerId, provider.id, y > row.height / 2);
+                    return true;
+                },
+            };
+            const draggable = DND.makeDraggable(row, {restoreOnSuccess: true});
+            draggable.connect('drag-end', clearHover);
+            accountRows.push(row);
             accounts.add_child(row);
         });
 
@@ -579,16 +600,23 @@ class TokenBarIndicator extends PanelMenu.Button {
         return applyProviderOrder(providers, this._settings.get_strv('provider-order'));
     }
 
-    _moveProvider(id, direction) {
+    _placeProvider(dragId, targetId, after = false) {
+        if (dragId === targetId)
+            return;
         const accounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
             ? this._state.accounts : PROVIDERS;
         const ids = accounts.map(account => account.id);
         const order = mergeProviderOrder(this._settings.get_strv('provider-order'), ids);
-        const index = order.indexOf(id);
-        const next = index + direction;
-        if (index < 0 || next < 0 || next >= order.length)
+        const from = order.indexOf(dragId);
+        if (from < 0 || !order.includes(targetId))
             return;
-        [order[index], order[next]] = [order[next], order[index]];
+        order.splice(from, 1);
+        let to = order.indexOf(targetId);
+        if (to < 0)
+            return;
+        if (after)
+            to += 1;
+        order.splice(to, 0, dragId);
         this._settings.set_strv('provider-order', order);
         this._queueRender();
     }

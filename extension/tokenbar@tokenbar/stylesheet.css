@@ -344,6 +344,20 @@
 
 .tokenbar-set-row {
   spacing: 8px;
+  border-radius: 10px;
+  padding: 2px 0;
+}
+
+.tokenbar-set-row.tokenbar-drop-hover {
+  background-color: rgba(169, 124, 248, 0.18);
+}
+
+.tokenbar-drag-actor {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background-color: rgba(34, 34, 37, 0.95);
+  color: #ffffff;
+  font-size: 13px;
 }
 
 .tokenbar-labeled {
