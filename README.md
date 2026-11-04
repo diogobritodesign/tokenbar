@@ -17,7 +17,7 @@ small collector writes a JSON file and a native piece of your desktop draws it.
 
 | Desktop | What you get |
 | --- | --- |
-| **GNOME** 48–50 | Native top-bar extension: a ring per account and the full panel. The most complete version. |
+| **GNOME** 48–51 | Native top-bar extension: a ring per account and the full panel. The most complete version. |
 | **KDE Plasma**, **Xfce**, **Cinnamon**, MATE, Budgie… | Tray icon with the percentage inside the ring; a click opens **the same panel, with the same design**. |
 | **Waybar** / **Polybar** (Sway, Hyprland, i3…) | A bar module with the percentages. |
 
@@ -96,9 +96,9 @@ one that depends on its own app: its card needs the Antigravity IDE running
 
 ## Requirements
 
-- GNOME Shell **48, 49 or 50** (developed and tested on Fedora 44 with GNOME
-  50 on Wayland; 48 and 49 are declared compatible but not yet tested by the
-  author; reports welcome).
+- GNOME Shell **48, 49, 50 or 51** (tested on Fedora 44 with GNOME 50 and on
+  Fedora 45 with GNOME 51, both on Wayland; 48 and 49 are declared compatible
+  but not yet tested by the author; reports welcome).
 - With `install.sh`: Node.js **20+** (no npm dependencies) and systemd user
   services (standard on Fedora, Ubuntu, Debian, Arch, openSUSE).
 - With the extension package (`scripts/pack-extension.sh`): nothing beyond

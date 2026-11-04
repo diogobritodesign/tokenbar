@@ -17,7 +17,7 @@ pequeno grava um arquivo JSON e uma parte nativa do seu desktop desenha.
 
 | Desktop | O que você tem |
 | --- | --- |
-| **GNOME** 48–50 | Extensão nativa na barra superior: um anel por conta e o painel completo. A versão mais completa. |
+| **GNOME** 48–51 | Extensão nativa na barra superior: um anel por conta e o painel completo. A versão mais completa. |
 | **KDE Plasma**, **Xfce**, **Cinnamon**, MATE, Budgie… | Ícone na bandeja com o percentual dentro do anel; o clique abre **o mesmo painel, com o mesmo design**. |
 | **Waybar** / **Polybar** (Sway, Hyprland, i3…) | Um módulo de barra com os percentuais. |
 
@@ -96,9 +96,9 @@ IDE aberto (a CLI de terminal `agy` sozinha não é detectada).
 
 ## Requisitos
 
-- GNOME Shell **48, 49 ou 50** (desenvolvido e testado no Fedora 44 com GNOME
-  50 em Wayland; 48 e 49 estão declarados como compatíveis mas ainda não foram
-  testados pelo autor — relatos são bem-vindos).
+- GNOME Shell **48, 49, 50 ou 51** (testado no Fedora 44 com GNOME 50 e no
+  Fedora 45 com GNOME 51, ambos em Wayland; 48 e 49 estão declarados como
+  compatíveis mas ainda não foram testados pelo autor — relatos são bem-vindos).
 - Pelo `install.sh`: Node.js **20+** (sem dependências do npm) e serviços de
   usuário do systemd (padrão no Fedora, Ubuntu, Debian, Arch, openSUSE).
 - Pelo pacote da extensão (`scripts/pack-extension.sh`): nada além do próprio

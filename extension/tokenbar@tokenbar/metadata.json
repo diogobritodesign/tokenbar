@@ -5,7 +5,8 @@
   "shell-version": [
     "48",
     "49",
-    "50"
+    "50",
+    "51"
   ],
   "settings-schema": "org.gnome.shell.extensions.tokenbar",
   "version": 1,
