@@ -7,6 +7,9 @@ import { t } from '../i18n.js';
 import { claudeDailyHistory, claudeUsageToday } from '../usage/claudeTranscripts.js';
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
+const PROFILE_URL = 'https://api.anthropic.com/api/oauth/profile';
+// Conta dona de cada token, consultada uma vez por token (só em memória, nunca gravada).
+const tokenOwners = new Map();
 const hint = () => t('claude.hint');
 
 // A conta padrão fica em ~/.claude. Contas extras são pastas ~/.claude-<nome>
@@ -87,13 +90,15 @@ export async function discoverClaudeAccounts(homeDir = home(), extraDirs = [], k
     .sort((a, b) => a.number - b.number);
   const multi = extras.length > 0;
   return [
-    { id: 'claude-main', label: 'CLD', name: multi ? 'Claude 1' : 'Claude', source: tildePath(mainDir, homeDir), dir: mainDir },
+    // A conta padrão guarda os dados da conta em ~/.claude.json; as outras, dentro da pasta.
+    { id: 'claude-main', label: 'CLD', name: multi ? 'Claude 1' : 'Claude', source: tildePath(mainDir, homeDir), dir: mainDir, configFile: join(homeDir, '.claude.json') },
     ...extras.map(({ dir, number }) => ({
       id: `claude-${number}`,
       label: `CLD${number}`,
       name: `Claude ${number}`,
       source: tildePath(dir, homeDir),
-      dir
+      dir,
+      configFile: join(dir, '.claude.json')
     }))
   ];
 }
@@ -178,6 +183,44 @@ function claudeProvider(account) {
         throw Object.assign(error, { plan });
       }
       return { plan, windows: mapWindows(usage) };
+    },
+
+    // Para achar duas pastas logadas na mesma conta: `account` é o dono do
+    // token (perfil da API) e `expected` a conta que o Claude Code registrou
+    // na pasta. Diferentes = alguém fez /login com outra conta ali.
+    async identity() {
+      let oauth;
+      try {
+        oauth = await readOauth(account.dir);
+      } catch {
+        return null;
+      }
+      // Token vencido: nenhuma requisição (o Claude Code renova quando abrir).
+      if (Number.isFinite(oauth.expiresAt) && oauth.expiresAt <= Date.now()) return null;
+      let owner = tokenOwners.get(oauth.accessToken);
+      if (owner === undefined) {
+        try {
+          const profile = await fetchJson(PROFILE_URL, {
+            accept: 'application/json',
+            authorization: `Bearer ${oauth.accessToken}`,
+            'anthropic-beta': 'oauth-2025-04-20',
+            'user-agent': 'tokenbar/0.1'
+          });
+          owner = profile?.account?.uuid ? String(profile.account.uuid) : null;
+        } catch {
+          return null;
+        }
+        if (tokenOwners.size > 32) tokenOwners.clear();
+        tokenOwners.set(oauth.accessToken, owner);
+      }
+      if (!owner) return null;
+      let expected = null;
+      try {
+        expected = JSON.parse(await platform.readText(account.configFile))?.oauthAccount?.accountUuid ?? null;
+      } catch {
+        expected = null;
+      }
+      return { account: owner, expected: expected ? String(expected) : null };
     },
 
     usageToday: (usageCache, now) => claudeUsageToday(join(account.dir, 'projects'), usageCache, now),

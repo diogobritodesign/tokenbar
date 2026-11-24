@@ -181,6 +181,46 @@ async function collectProvider(provider, previous, usageCache, now, { force = fa
   return result;
 }
 
+// Duas pastas do Claude logadas na mesma conta mostram os mesmos números; a
+// pasta "errada" (cujo token não é da conta que ela registrou) ganha um aviso.
+// Sem essa pista, avisa em todas menos a primeira.
+export function sameAccountWarnings(entries) {
+  const groups = new Map();
+  for (const entry of entries) {
+    if (!entry.identity?.account) continue;
+    if (!groups.has(entry.identity.account)) groups.set(entry.identity.account, []);
+    groups.get(entry.identity.account).push(entry);
+  }
+  const warnings = new Map();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const mismatched = group.filter((entry) => entry.identity.expected && entry.identity.expected !== entry.identity.account);
+    const flagged = mismatched.length > 0 && mismatched.length < group.length ? mismatched : group.slice(1);
+    for (const entry of flagged) {
+      const other = group.find((candidate) => !flagged.includes(candidate)) ?? group[0];
+      warnings.set(entry.id, other.id);
+    }
+  }
+  return warnings;
+}
+
+async function markSameAccount(active, providers) {
+  const withIdentity = active.filter((provider) => typeof provider.identity === 'function');
+  if (withIdentity.length < 2) return;
+  const entries = await Promise.all(
+    withIdentity.map(async (provider) => ({ id: provider.id, identity: await provider.identity().catch(() => null) }))
+  );
+  const byId = new Map(providers.map((provider) => [provider.id, provider]));
+  for (const [id, otherId] of sameAccountWarnings(entries)) {
+    const provider = byId.get(id);
+    const other = byId.get(otherId);
+    if (!provider || !other) continue;
+    provider.sameAccountAs = otherId;
+    // Erro real (login expirado, limite de requisições) tem prioridade sobre o aviso.
+    if (!provider.error) provider.error = t('claude.sameAccount', { label: other.label, source: provider.source ?? '' });
+  }
+}
+
 export async function collectOnce(config, { forceUpdateCheck = false, forceProviders = false } = {}) {
   setLanguage(config.language);
   const now = new Date();
@@ -201,6 +241,7 @@ export async function collectOnce(config, { forceUpdateCheck = false, forceProvi
   ]);
   const providers = applyAccountNames(applyProviderOrder(collected, config.providerOrder), config.accountNames);
 
+  await markSameAccount(active, providers);
   await applyRecentPace(providers, now.getTime());
 
   const history = await loadHistory();

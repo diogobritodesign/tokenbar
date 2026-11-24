@@ -18,6 +18,10 @@ export const MESSAGES = {
   'claude.hint': ['abra o Claude Code para renovar o login', 'open Claude Code to renew the login'],
   'claude.noCredentials': ['sem credenciais — {hint}', 'no credentials — {hint}'],
   'claude.expired': ['login expirado — {hint}', 'login expired — {hint}'],
+  'claude.sameAccount': [
+    'mesma conta de {label} — abra o Claude Code com esta pasta ({source}) e faça /login com a outra conta',
+    'same account as {label} — open Claude Code with this folder ({source}) and /login with the other account'
+  ],
   'claude.refused': ['login recusado — {hint}', 'login refused — {hint}'],
   'codex.hint': ['rode "codex login" para entrar de novo', 'run "codex login" to sign in again'],
   'codex.noCredentials': ['sem credenciais — {hint}', 'no credentials — {hint}'],

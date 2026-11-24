@@ -45,7 +45,7 @@ async function writeAccount(dir, { expiresAt }) {
 await writeAccount(path.join(home, '.claude'), { expiresAt: Date.now() + 3600e3 });
 await writeAccount(path.join(home, '.claude-extra'), { expiresAt: Date.now() - 1000 });
 
-const { collectOnce, loadConfig, historyCsv } = await import('../collector/src/collect.js');
+const { collectOnce, loadConfig, historyCsv, sameAccountWarnings } = await import('../collector/src/collect.js');
 const stateFile = path.join(home, 'cache', 'tokenbar', 'state.json');
 const readState = async () => JSON.parse(await fs.readFile(stateFile, 'utf8'));
 const byId = (state, id) => state.providers.find((p) => p.id === id);
@@ -82,7 +82,7 @@ test('token expirado não gera requisição e vira "unauthorized" com a dica', a
   assert.equal(extra.status, 'unauthorized');
   assert.match(extra.error, /abra o Claude Code/);
   assert.equal(extra.tokensToday, 1500, 'o uso local é lido mesmo sem login');
-  assert.equal(calls.filter((c) => c.url.includes('api.anthropic.com')).length, 1);
+  assert.equal(calls.filter((c) => c.url.includes('api.anthropic.com/api/oauth/usage')).length, 1);
 });
 
 test('nenhuma credencial vaza para os arquivos gravados', async () => {
@@ -160,4 +160,20 @@ test('com idioma inglês no config.json, os textos gravados saem em inglês', as
   assert.match(byId(state, 'claude-2').error, /open Claude Code/);
   assert.equal(byId(state, 'claude-main').name, 'Claude 1');
   assert.equal(byId(state, 'claude-main').windows[1].label, 'Semana', 'o último valor conhecido é mantido como estava');
+});
+
+test('duas pastas na mesma conta: avisa na pasta cujo login não é da conta registrada', () => {
+  const warn = sameAccountWarnings([
+    { id: 'claude-main', identity: { account: 'B', expected: 'A' } },
+    { id: 'claude-2', identity: { account: 'B', expected: 'B' } },
+    { id: 'claude-3', identity: { account: 'C', expected: 'C' } }
+  ]);
+  assert.deepEqual([...warn], [['claude-main', 'claude-2']]);
+  // Sem pista de qual está errada: avisa em todas menos a primeira.
+  assert.deepEqual([...sameAccountWarnings([
+    { id: 'a', identity: { account: 'X', expected: null } },
+    { id: 'b', identity: { account: 'X', expected: null } },
+    { id: 'c', identity: null }
+  ])], [['b', 'a']]);
+  assert.equal(sameAccountWarnings([{ id: 'a', identity: { account: 'X' } }, { id: 'b', identity: { account: 'Y' } }]).size, 0);
 });
