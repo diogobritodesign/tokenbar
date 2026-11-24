@@ -103,6 +103,12 @@ button.step:hover { background-color: rgba(255, 255, 255, 0.18); }
 .account-row { border-radius: 10px; padding: 2px 0; }
 .account-row.drop-hover { background-color: rgba(169, 124, 248, 0.18); }
 .account-row.dragging { opacity: 0.55; }
+.tag-fixed { min-width: 26px; }
+.grip { font-size: 14px; }
+.account-editor { padding: 10px; border-radius: 12px; background-color: rgba(169, 124, 248, 0.10); }
+entry.tb-entry { padding: 4px 10px; border-radius: 10px; background-color: rgba(15, 15, 16, 0.55); color: #ffffff; border: 1px solid transparent; box-shadow: none; caret-color: #a97cf8; min-height: 0; }
+entry.tb-entry:focus-within { border-color: #a97cf8; }
+button.tb.edit { padding: 2px 6px; color: #6e6e73; }
 switch { border-radius: 13px; background-color: rgba(255, 255, 255, 0.12); border: none; min-height: 20px; }
 switch:checked { background-color: #a97cf8; }
 switch slider { min-width: 14px; min-height: 14px; border-radius: 7px; background-color: #8e8e93; box-shadow: none; border: none; margin: 3px; }
@@ -153,8 +159,10 @@ WINDOW_STRINGS = {
     'refresh': ('Atualizar', 'Refresh'), 'refreshing': ('Atualizando…', 'Refreshing…'),
     'refresh_failed': ('Falhou — tentar de novo', 'Failed — try again'),
     'settings': ('Configurações', 'Settings'), 'back': ('Voltar', 'Back'),
-    's_accounts': ('Contas', 'Accounts'), 's_collect': ('coletar', 'collect'),
-    's_drag': ('Arraste para reordenar', 'Drag to reorder'),
+    's_accounts': ('Contas', 'Accounts'), 's_collect': ('ativa', 'active'),
+    's_drag': ('⠿ arraste para reordenar · ✎ renomear', '⠿ drag to reorder · ✎ rename'),
+    's_rename': ('Renomear', 'Rename'), 's_name': ('Nome', 'Name'), 's_tag': ('Sigla', 'Tag'),
+    's_save': ('Salvar', 'Save'), 's_cancel': ('Cancelar', 'Cancel'), 's_default': ('Padrão', 'Default'),
     's_display': ('Exibição', 'Display'), 's_language': ('Idioma', 'Language'),
     'lang_auto': ('Sistema', 'System'), 'lang_pt': ('Português', 'Português'), 'lang_en': ('English', 'English'),
     's_percent': ('Percentuais', 'Percentages'), 'pct_left': ('Restante', 'Left'), 'pct_used': ('Usado', 'Used'),
@@ -540,6 +548,7 @@ class PanelWindow:
         self.view = 'main'
         self.period = 'today'
         self.expanded = None  # contas abertas; None = só a primeira
+        self.editing = None  # conta com o editor de nome aberto
         self.details = set()
         self.refreshing = False
         self.hidden_at = 0.0
@@ -594,7 +603,8 @@ class PanelWindow:
 
     def providers(self):
         items = [p for p in (self.state or {}).get('providers', []) if isinstance(p, dict) and p.get('id')]
-        return core.apply_provider_order(items, (self.options or {}).get('provider_order') or [])
+        items = core.apply_provider_order(items, (self.options or {}).get('provider_order') or [])
+        return core.apply_account_names(items, (self.options or {}).get('account_names'))
 
     def level(self, provider):
         return core.level_of(provider, self.options['warn'], self.options['crit'])
@@ -900,13 +910,31 @@ class PanelWindow:
         disabled = set(config.get('disabledProviders') or [])
         known = (self.state or {}).get('accounts') or [{'id': p['id'], 'label': p.get('label'), 'name': p.get('name')} for p in self.providers()]
         known = core.apply_provider_order(known, config.get('providerOrder') or [])
+        names = core.normalize_account_names(config.get('accountNames'))
+        known = core.apply_account_names(known, names)
         for account in known:
+            if self.editing == account['id']:
+                accounts.append(self._account_editor(account, names.get(account['id']) or {}))
+                continue
             row = box(False, 8, 'account-row')
             handle = box(False, 8, 'account-handle', hexpand=True)
-            handle.append(label(account.get('label') or account['id'], 'tag'))
-            handle.append(label(account.get('name') or '', hexpand=True))
+            grip = label('⠿', 'muted', 'grip')
+            grip.set_valign(Gtk.Align.CENTER)
+            handle.append(grip)
+            tag_label = label(account.get('label') or account['id'], 'tag', 'tag-fixed', xalign=0.5)
+            tag_label.set_valign(Gtk.Align.CENTER)
+            handle.append(tag_label)
+            text = box(True, 0, hexpand=True)
+            text.append(label(account.get('name') or ''))
+            if account.get('source'):
+                text.append(label(account['source'], 'muted', 'tiny'))
+            handle.append(text)
             handle.set_cursor(Gdk.Cursor.new_from_name('grab'))
             row.append(handle)
+            edit = text_button('✎', lambda ident=account['id']: self.edit_account(ident), 'tb', 'small', 'edit')
+            edit.set_tooltip_text(w('s_rename'))
+            edit.set_valign(Gtk.Align.CENTER)
+            row.append(edit)
             switch = Gtk.Switch(active=account['id'] not in disabled, valign=Gtk.Align.CENTER)
             switch.connect('notify::active', lambda sw, _p, ident=account['id']: self.set_collect(ident, sw.get_active()))
             row.append(switch)
@@ -1012,6 +1040,54 @@ class PanelWindow:
         self.write_config(config)
         if rerender:
             GLib.idle_add(lambda: (self.render(), False)[1])
+
+    def _account_editor(self, account, custom):
+        w = self.words
+        editor = box(True, 10, 'account-editor')
+        fields = box(False, 8)
+        name = Gtk.Entry(text=custom.get('name') or '', placeholder_text=account.get('defaultName') or '', hexpand=True, max_length=32)
+        tag = Gtk.Entry(text=custom.get('label') or '', placeholder_text=account.get('defaultLabel') or '', max_length=5, width_chars=6)
+        for entry in (name, tag):
+            entry.add_css_class('tb-entry')
+        name_field = labeled(w('s_name'), name)
+        name_field.set_hexpand(True)
+        fields.append(name_field)
+        fields.append(labeled(w('s_tag'), tag))
+        editor.append(fields)
+
+        def save():
+            self.set_account_name(account['id'], name.get_text(), tag.get_text())
+
+        name.connect('activate', lambda *_: save())
+        tag.connect('activate', lambda *_: save())
+        keys = Gtk.EventControllerKey.new()
+        keys.connect('key-pressed', lambda _c, keyval, _code, _state: (self.edit_account(None), True)[1] if keyval == Gdk.KEY_Escape else False)
+        editor.add_controller(keys)
+
+        actions = box(False, 4, 'segmented', 'choice')
+        actions.append(text_button(w('s_default'), lambda: self.set_account_name(account['id'], '', ''), 'tb', 'small', hexpand=True))
+        actions.append(text_button(w('s_cancel'), lambda: self.edit_account(None), 'tb', 'small', hexpand=True))
+        actions.append(text_button(w('s_save'), save, 'tb', 'small', 'primary', hexpand=True))
+        editor.append(actions)
+        GLib.idle_add(lambda: (name.grab_focus(), False)[1])
+        return editor
+
+    def edit_account(self, ident):
+        self.editing = ident
+        GLib.idle_add(lambda: (self.render(), False)[1])
+
+    def set_account_name(self, ident, name, tag):
+        config = self.read_config()
+        names = core.normalize_account_names(config.get('accountNames'))
+        entry = core.normalize_account_names({ident: {'name': name, 'label': tag}}).get(ident)
+        if entry:
+            names[ident] = entry
+        else:
+            names.pop(ident, None)
+        config['accountNames'] = names
+        self.write_config(config)
+        self.options = {**(self.options or {}), 'account_names': names}
+        self.edit_account(None)
 
     def set_collect(self, ident, active):
         config = self.read_config()

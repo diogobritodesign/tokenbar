@@ -4,8 +4,9 @@ import { discoverClaudeAccounts } from './providers/claude.js';
 import { join } from './util/path.js';
 
 // Pastas onde as ferramentas gravam as conversas enquanto você usa.
-export async function activityPaths(homeDir = home()) {
-  const accounts = await discoverClaudeAccounts(homeDir);
+// Os ids não importam aqui (só as pastas): a numeração vai num mapa descartável.
+export async function activityPaths(homeDir = home(), claudeDirs = []) {
+  const accounts = await discoverClaudeAccounts(homeDir, claudeDirs, {});
   return [
     ...accounts.map((account) => join(account.dir, 'projects')),
     join(homeDir, '.codex', 'sessions'),

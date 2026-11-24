@@ -55,7 +55,7 @@ test('Claude: descobre a conta padrão e as pastas ~/.claude-<nome> com login ou
   const extra = path.join(home, 'contas', 'cliente');
   await fs.mkdir(path.join(extra, 'projects'), { recursive: true });
 
-  const accounts = await claude.discoverClaudeAccounts(home, ['~/contas/cliente', '/não/existe', 'relativo']);
+  const accounts = await claude.discoverClaudeAccounts(home, ['~/contas/cliente', '/não/existe', 'relativo'], {});
   assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name, a.source]), [
     ['claude-main', 'CLD', 'Claude 1', '~/.claude'],
     ['claude-2', 'CLD2', 'Claude 2', '~/.claude-antiga'],
@@ -63,7 +63,7 @@ test('Claude: descobre a conta padrão e as pastas ~/.claude-<nome> com login ou
     ['claude-4', 'CLD4', 'Claude 4', '~/.claude_pessoal'],
     ['claude-5', 'CLD5', 'Claude 5', '~/contas/cliente']
   ]);
-  const only = await claude.discoverClaudeAccounts(await tempDir(t));
+  const only = await claude.discoverClaudeAccounts(await tempDir(t), [], {});
   assert.deepEqual(only.map((a) => a.name), ['Claude']);
 });
 
@@ -280,7 +280,7 @@ test('em inglês, os rótulos e nomes gerados pelo coletor mudam', async (t) => 
   assert.deepEqual(copilot.mapWindows({ quota_snapshots: { completions: quota } }).map((w) => w.label), ['Code']);
   const home = await tempDir(t);
   await fs.mkdir(path.join(home, '.claude-x', 'projects'), { recursive: true });
-  assert.equal((await claude.discoverClaudeAccounts(home))[0].name, 'Claude 1');
+  assert.equal((await claude.discoverClaudeAccounts(home, [], {}))[0].name, 'Claude 1');
 });
 
 test('Antigravity: token CSRF lido do ambiente do processo (versões 2.x)', () => {
@@ -297,4 +297,35 @@ test('Antigravity: dois grupos com o mesmo nome curto mantêm o nome original', 
     ]
   });
   assert.deepEqual(windows.map((w) => [w.group, w.usedPct]), [['Gemini', 50], ['Gemini Flash', 0]]);
+});
+
+test('Claude: pasta nova não muda o id das contas que já existiam', async (t) => {
+  const home = await tempDir(t);
+  await fs.mkdir(path.join(home, '.claude'));
+  await fs.mkdir(path.join(home, '.claude-meu', 'projects'), { recursive: true });
+  const known = {};
+  let accounts = await claude.discoverClaudeAccounts(home, [], known);
+  assert.deepEqual(accounts.map((a) => a.id), ['claude-main', 'claude-2']);
+
+  // "a-nova" vem antes de "meu" na ordem alfabética, mas pega o próximo número.
+  await fs.mkdir(path.join(home, '.claude-a-nova', 'projects'), { recursive: true });
+  accounts = await claude.discoverClaudeAccounts(home, [], known);
+  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name, a.source]), [
+    ['claude-main', 'CLD', 'Claude 1', '~/.claude'],
+    ['claude-2', 'CLD2', 'Claude 2', '~/.claude-meu'],
+    ['claude-3', 'CLD3', 'Claude 3', '~/.claude-a-nova']
+  ]);
+
+  // Uma pasta que some não libera o número para outra.
+  await fs.rm(path.join(home, '.claude-meu'), { recursive: true });
+  await fs.mkdir(path.join(home, '.claude-z', 'projects'), { recursive: true });
+  accounts = await claude.discoverClaudeAccounts(home, [], known);
+  assert.deepEqual(accounts.map((a) => a.id), ['claude-main', 'claude-3', 'claude-4']);
+});
+
+test('Claude: numeração fixa — sem arquivo, segue a ordem alfabética', () => {
+  const known = {};
+  assert.equal(claude.assignAccountNumbers(['/h/.claude-b', '/h/.claude-c'], known), true);
+  assert.deepEqual(known, { '/h/.claude-b': 2, '/h/.claude-c': 3 });
+  assert.equal(claude.assignAccountNumbers(['/h/.claude-b', '/h/.claude-c'], known), false);
 });

@@ -170,13 +170,33 @@ class OptionsTests(unittest.TestCase):
             options = tray.load_options(path)
             self.assertEqual(options, {
                 'language': 'en', 'show_remaining': False, 'warn': 50, 'crit': 70,
-                'currency': 'usd', 'label': 'all', 'hidden_providers': [], 'provider_order': [],
+                'currency': 'usd', 'label': 'all', 'hidden_providers': [], 'provider_order': [], 'account_names': {},
                 'dock': False, 'notifications': True, 'update_check': True,
                 'budget_daily': 0, 'budget_monthly': 0,
             })
             with open(path, 'w', encoding='utf-8') as file:
                 file.write('{ quebrado')
             self.assertEqual(tray.load_options(path)['warn'], 60)
+
+
+class AccountNameTests(unittest.TestCase):
+    def test_normalize_and_apply_like_the_collector(self):
+        names = tray.normalize_account_names({
+            'claude-main': {'name': '  Trabalho   pessoal ', 'label': 'wk'},
+            'claude-2': {'name': '', 'label': ''},
+            'codex': {'label': 'chatgpt'}, 'ruim': 'texto',
+        })
+        self.assertEqual(names, {'claude-main': {'name': 'Trabalho pessoal', 'label': 'WK'}, 'codex': {'label': 'CHATG'}})
+        items = tray.apply_account_names([{'id': 'claude-main', 'name': 'Claude 1', 'label': 'CLD'}, {'id': 'x', 'name': 'X', 'label': 'X'}], names)
+        self.assertEqual([(i['name'], i['label'], i['defaultName']) for i in items],
+                         [('Trabalho pessoal', 'WK', 'Claude 1'), ('X', 'X', 'X')])
+        self.assertEqual(tray.apply_account_names(items, {})[0]['name'], 'Claude 1')
+
+    def test_view_uses_custom_tags(self):
+        state = {'providers': [{'id': 'claude-2', 'label': 'CLD2', 'name': 'Claude 2', 'status': 'ok',
+                                'windows': [{'kind': 'session', 'usedPct': 12}]}]}
+        options = {**tray.load_options('/nao/existe'), 'label': 'all', 'account_names': {'claude-2': {'label': 'TRB'}}}
+        self.assertTrue(tray.View(state, options).label().startswith('TRB'))
 
 
 if __name__ == '__main__':

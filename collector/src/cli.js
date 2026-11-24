@@ -71,7 +71,7 @@ export async function run(args, io) {
   // Coleta no intervalo das configurações e, além disso, logo depois de cada
   // uso do Claude Code ou do Codex (no máximo uma vez por minuto).
   const scheduler = new CollectionScheduler();
-  watchActivity(await activityPaths(), () => scheduler.activity());
+  watchActivity(await activityPaths(undefined, (await loadConfig()).claudeDirs), () => scheduler.activity());
 
   let backfilled = false;
   for (;;) {

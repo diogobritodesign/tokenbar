@@ -1,7 +1,7 @@
-import { home } from '../paths.js';
+import { home, stateDir } from '../paths.js';
 import { platform } from '../platform/index.js';
 import { join } from '../util/path.js';
-import { isDirectory } from '../files.js';
+import { isDirectory, readJson, writeJsonAtomic } from '../files.js';
 import { CollectError, fetchJson } from '../http.js';
 import { t } from '../i18n.js';
 import { claudeDailyHistory, claudeUsageToday } from '../usage/claudeTranscripts.js';
@@ -11,9 +11,11 @@ const hint = () => t('claude.hint');
 
 // A conta padrão fica em ~/.claude. Contas extras são pastas ~/.claude-<nome>
 // ou ~/.claude_<nome> (as usadas com CLAUDE_CONFIG_DIR), mais as pastas que o
-// usuário listar em `claudeDirs` no config.json. Cada uma vira CLD2, CLD3...
-// em ordem alfabética, para o id não mudar entre execuções. Os nomes são
-// "Claude 1", "Claude 2"... quando há mais de uma; o usuário pode trocá-los.
+// usuário listar em `claudeDirs` no config.json. Cada pasta recebe um número
+// fixo (claude-2/CLD2, claude-3/CLD3...) guardado em account-ids.json: uma
+// pasta nova pega o próximo número livre e nunca muda o id das que já
+// existem, então nomes e ordem escolhidos continuam na conta certa. Sem o
+// arquivo, a numeração segue a ordem alfabética (a mesma das versões antigas).
 const PREFIXES = ['.claude-', '.claude_'];
 
 async function looksLikeAccount(dir) {
@@ -33,7 +35,32 @@ function expandHome(dir, homeDir) {
   return text.startsWith('/') ? text.replace(/\/+$/, '') : null;
 }
 
-export async function discoverClaudeAccounts(homeDir = home(), extraDirs = []) {
+const accountIdsFile = () => join(stateDir(), 'account-ids.json');
+
+// Dá a cada pasta um número >= 2. `known` ({pasta: número}) é atualizado no
+// lugar; números de pastas que sumiram não são reaproveitados.
+export function assignAccountNumbers(dirs, known) {
+  const used = new Set(Object.values(known).filter(Number.isInteger));
+  let next = 2;
+  let changed = false;
+  for (const dir of dirs) {
+    if (Number.isInteger(known[dir]) && known[dir] >= 2) continue;
+    while (used.has(next)) next += 1;
+    known[dir] = next;
+    used.add(next);
+    changed = true;
+  }
+  return changed;
+}
+
+async function loadKnownIds() {
+  const saved = await readJson(accountIdsFile());
+  const claude = saved?.claude;
+  return claude && typeof claude === 'object' && !Array.isArray(claude) ? { ...claude } : {};
+}
+
+// `known` permite aos testes passar a numeração; sem ele, usa o arquivo.
+export async function discoverClaudeAccounts(homeDir = home(), extraDirs = [], known = null) {
   const mainDir = join(homeDir, '.claude');
   // Sem acesso à pasta pessoal, a lista vem vazia e fica só a conta padrão.
   const names = (await platform.readdir(homeDir))
@@ -48,13 +75,23 @@ export async function discoverClaudeAccounts(homeDir = home(), extraDirs = []) {
     const dir = expandHome(raw, homeDir);
     if (dir && dir !== mainDir && !dirs.includes(dir) && (await looksLikeAccount(dir))) dirs.push(dir);
   }
-  const multi = dirs.length > 0;
+
+  const persist = known === null;
+  const numbers = persist ? await loadKnownIds() : known;
+  if (assignAccountNumbers(dirs, numbers) && persist) {
+    await writeJsonAtomic(accountIdsFile(), { version: 1, claude: numbers }).catch(() => {});
+  }
+
+  const extras = dirs
+    .map((dir) => ({ dir, number: numbers[dir] }))
+    .sort((a, b) => a.number - b.number);
+  const multi = extras.length > 0;
   return [
     { id: 'claude-main', label: 'CLD', name: multi ? 'Claude 1' : 'Claude', source: tildePath(mainDir, homeDir), dir: mainDir },
-    ...dirs.map((dir, index) => ({
-      id: `claude-${index + 2}`,
-      label: `CLD${index + 2}`,
-      name: `Claude ${index + 2}`,
+    ...extras.map(({ dir, number }) => ({
+      id: `claude-${number}`,
+      label: `CLD${number}`,
+      name: `Claude ${number}`,
       source: tildePath(dir, homeDir),
       dir
     }))

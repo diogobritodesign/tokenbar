@@ -91,6 +91,8 @@ node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv
 echo '{"language": "en", "bar": {"label": "all"}}' > "$XDG_CONFIG_HOME/tokenbar/config.json"
 node "$SRC/scripts/demo-state.mjs" "$XDG_CACHE_HOME/tokenbar/state.tmp" en && mv "$XDG_CACHE_HOME/tokenbar/state.tmp" "$XDG_CACHE_HOME/tokenbar/state.json"
 check "acompanha o state.json e o config.json" "$(eventually x "get XAyatanaLabel" "*CLD2*")" "(<'CLD 62%  CLD2 12%  OAI 53%  AG 0%  GH 85%'>,)"
+echo '{"language": "en", "bar": {"label": "all"}, "accountNames": {"claude-2": {"label": "trb"}}}' > "$XDG_CONFIG_HOME/tokenbar/config.json"
+check "sigla personalizada no ícone" "$(eventually x "get XAyatanaLabel" "*TRB*")" "(<'CLD 62%  TRB 12%  OAI 53%  AG 0%  GH 85%'>,)"
 contains "menu em inglês depois da troca" "$(eventually x "gdbus call --session --dest $NAME --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1" "*Refresh now*")" "Refresh now"
 : "$(gdbus call --session --dest "$NAME" --object-path /MenuBar --method com.canonical.dbusmenu.GetLayout 'int32 0' 'int32 -1' '@as []' 2>&1)" "Refresh now"
 

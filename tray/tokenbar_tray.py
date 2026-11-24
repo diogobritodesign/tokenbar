@@ -175,12 +175,46 @@ def load_options(config_path):
         'label': bar.get('label') if bar.get('label') in ('critical', 'all', 'none') else 'critical',
         'hidden_providers': [str(item) for item in hidden],
         'provider_order': [str(item) for item in raw.get('providerOrder', [])] if isinstance(raw.get('providerOrder'), list) else [],
+        'account_names': normalize_account_names(raw.get('accountNames')),
         'dock': raw.get('dock') is True,
         'notifications': raw.get('notifications') is not False,
         'update_check': raw.get('updateCheck') is not False,
         'budget_daily': int(raw.get('budgetDaily', 0)) if isinstance(raw.get('budgetDaily', 0), (int, float)) else 0,
         'budget_monthly': int(raw.get('budgetMonthly', 0)) if isinstance(raw.get('budgetMonthly', 0), (int, float)) else 0,
     }
+
+
+def _clean(value, limit):
+    text = ' '.join(str(value or '').split())
+    return text[:limit]
+
+
+def normalize_account_names(raw):
+    """Nomes e siglas escolhidos pelo usuário: {id: {name, label}} (igual ao coletor)."""
+    result = {}
+    if not isinstance(raw, dict):
+        return result
+    for ident, entry in raw.items():
+        if not isinstance(entry, dict):
+            continue
+        name = _clean(entry.get('name'), 32)
+        tag = _clean(entry.get('label'), 5).upper()
+        clean = {key: value for key, value in (('name', name), ('label', tag)) if value}
+        if clean:
+            result[str(ident)] = clean
+    return result
+
+
+def apply_account_names(items, names):
+    """Aplica o nome/sigla escolhidos e guarda o padrão em defaultName/defaultLabel."""
+    result = []
+    for item in items or []:
+        custom = (names or {}).get(str(item.get('id'))) or {}
+        default_name = item.get('defaultName') or item.get('name')
+        default_label = item.get('defaultLabel') or item.get('label')
+        result.append({**item, 'name': custom.get('name') or default_name, 'label': custom.get('label') or default_label,
+                       'defaultName': default_name, 'defaultLabel': default_label})
+    return result
 
 
 def apply_provider_order(items, order):
@@ -322,6 +356,7 @@ class View:
         if state and isinstance(state.get('providers'), list):
             providers = [p for p in state['providers'] if isinstance(p, dict) and p.get('id') and p.get('id') not in hidden]
             providers = apply_provider_order(providers, options.get('provider_order') or [])
+            providers = apply_account_names(providers, options.get('account_names'))
             state = {**state, 'providers': providers}
             self.state = state
         self.now = time.time() if now is None else now
