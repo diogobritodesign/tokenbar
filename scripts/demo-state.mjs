@@ -50,11 +50,11 @@ const state = {
     source: process.env.TOKENBAR_DEMO_SOURCE || null, url: 'https://github.com/diogobritodesign/tokenbar/compare/a1b2c3d...e4f5a6b'
   } : null,
   accounts: [
-    { id: 'claude-main', label: 'CLD', name: en ? 'Claude (main)' : 'Claude (principal)', enabled: true },
-    { id: 'claude-2', label: 'CLD2', name: en ? 'Claude (work)' : 'Claude (trabalho)', enabled: true },
-    { id: 'codex', label: 'OAI', name: 'Codex / ChatGPT', enabled: true },
-    { id: 'antigravity', label: 'AG', name: 'Antigravity', enabled: true },
-    { id: 'copilot', label: 'GH', name: 'GitHub Copilot', enabled: true }
+    { id: 'claude-main', label: 'CLD', name: 'Claude 1', source: '~/.claude', enabled: true },
+    { id: 'claude-2', label: 'CLD2', name: 'Claude 2', source: '~/.claude-work', enabled: true },
+    { id: 'codex', label: 'OAI', name: 'Codex / ChatGPT', source: '~/.codex', enabled: true },
+    { id: 'antigravity', label: 'AG', name: 'Antigravity', source: 'Antigravity IDE', enabled: true },
+    { id: 'copilot', label: 'GH', name: 'GitHub Copilot', source: 'gh CLI', enabled: true }
   ],
   usage: {
     series,

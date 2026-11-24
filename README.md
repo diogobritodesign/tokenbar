@@ -50,6 +50,10 @@ the installer).
   goal.
 - **Service status**: a banner appears only when status.claude.com reports an
   incident.
+- **Your accounts, your names**: every account found is listed automatically
+  (`Claude 1`, `Claude 2`… when there is more than one, with the folder it
+  comes from). Click a name in the settings to rename it or change its tag;
+  drag the ⠿ handle to reorder.
 - **Settings inside the panel**: accounts, what the bar shows, colour
   thresholds, goals, currency, language, collector interval, position.
 - Keyboard shortcut (`Super`+`Alt`+`T`) and CSV export of the daily history.
@@ -166,6 +170,12 @@ All of these can be changed in the panel's settings; they are stored in
 ```json
 { "language": "en", "dock": true, "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "usd" } }
 ```
+
+Claude Code folders outside `~/.claude-*` / `~/.claude_*` (any
+`CLAUDE_CONFIG_DIR` you use) can be added by hand with
+`"claudeDirs": ["~/work/claude"]`, and names with
+`"accountNames": { "claude-2": { "name": "Work", "label": "WRK" } }` (the
+GNOME settings write this one for you).
 
 `label` can be `critical` (the most critical account), `all` or `none`.
 `"dock": true` keeps TokenBar in the taskbar as a regular program (the logo

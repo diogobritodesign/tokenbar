@@ -319,17 +319,14 @@ export async function discoverCursorAccounts(configDir = configHome()) {
   const multi = found.length > 1;
   return found.map((entry, index) => {
     const label = index === 0 ? 'CUR' : `CUR${index + 1}`;
-    let name = 'Cursor';
-    if (multi) {
-      if (entry.source === 'cli') name = t('name.cursorCli');
-      else if (entry.suffix) name = `Cursor (${entry.suffix})`;
-      else name = t('name.cursorIde');
-    }
+    const name = multi ? `Cursor ${index + 1}` : 'Cursor';
+    const where = entry.source === 'cli' ? 'CLI' : entry.suffix ? `IDE (Cursor-${entry.suffix})` : 'IDE';
     return {
       id: entry.id,
       label,
       name,
       source: entry.source,
+      where,
       readAuth: entry.readAuth,
       fetchError: entry.fetchError || null
     };
@@ -416,6 +413,7 @@ function cursorProvider(account) {
     id: account.id,
     label: account.label,
     name: account.name,
+    source: account.where,
     // A conta "existe" se ainda há pasta/arquivo dela, mesmo sem conseguir ler.
     exists: async () => {
       if (account.fetchError) return true;

@@ -20,6 +20,21 @@ function flagValue(argv, flag) {
   return inline ? inline.slice(flag.length + 1) : '';
 }
 
+const ENV_TOKEN = 'ANTIGRAVITY_SERVER_CSRF_TOKEN=';
+
+export function tokenFromEnviron(text) {
+  const line = String(text || '').split('\0').find((entry) => entry.startsWith(ENV_TOKEN));
+  return line ? line.slice(ENV_TOKEN.length) : '';
+}
+
+async function envToken(pid) {
+  try {
+    return tokenFromEnviron(await platform.readText(`/proc/${pid}/environ`));
+  } catch {
+    return '';
+  }
+}
+
 async function findLanguageServers() {
   const servers = [];
   for (const entry of await platform.readdir('/proc')) {
@@ -32,7 +47,9 @@ async function findLanguageServers() {
     }
     if (!basename(argv[0] || '').startsWith('language_server')) continue;
     if (!argv.some((arg) => arg.toLowerCase().includes('antigravity'))) continue;
-    const csrfToken = flagValue(argv, '--csrf_token');
+    // Versões antigas passam o token na linha de comando; a partir da 2.x ele
+    // vem no ambiente do processo (ANTIGRAVITY_SERVER_CSRF_TOKEN).
+    const csrfToken = flagValue(argv, '--csrf_token') || (await envToken(entry));
     if (csrfToken) servers.push({ pid: Number(entry), csrfToken });
   }
   return servers;
@@ -84,8 +101,12 @@ function groupName(displayName) {
 export function mapWindows(summary) {
   const groups = (summary?.response ?? summary)?.groups;
   const windows = [];
+  const seen = new Set();
   for (const group of Array.isArray(groups) ? groups : []) {
-    const name = groupName(group?.displayName);
+    // Dois grupos com o mesmo nome curto (ex.: dois de Gemini) mantêm o nome original.
+    let name = groupName(group?.displayName);
+    if (seen.has(name)) name = String(group?.displayName || name).trim();
+    seen.add(name);
     const inGroup = [];
     for (const bucket of Array.isArray(group?.buckets) ? group.buckets : []) {
       const kind = bucket?.window === '5h' ? 'session' : bucket?.window === 'weekly' ? 'weekly' : null;
@@ -158,6 +179,7 @@ export const antigravityProviders = [
     id: 'antigravity',
     label: 'AG',
     name: 'Antigravity',
+    source: 'Antigravity IDE',
     exists: anyDataDir,
     fetchLimits,
     // As conversas ficam em bancos protobuf próprios; não há contagem de

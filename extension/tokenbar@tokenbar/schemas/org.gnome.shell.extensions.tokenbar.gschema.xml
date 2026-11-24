@@ -13,6 +13,10 @@
       <default>[]</default>
       <summary>Ordem das contas na barra e no painel</summary>
     </key>
+    <key name="account-names" type="s">
+      <default>'{}'</default>
+      <summary>Nomes e siglas personalizados das contas (JSON: id → {name, label})</summary>
+    </key>
     <key name="bar-mode" type="s">
       <choices>
         <choice value="full"/>

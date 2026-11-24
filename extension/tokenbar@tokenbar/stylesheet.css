@@ -348,16 +348,86 @@
   padding: 2px 0;
 }
 
-.tokenbar-set-row.tokenbar-drop-hover {
+.tokenbar-tag-fixed {
+  width: 38px;
+  text-align: center;
+}
+
+.tokenbar-account-list {
+  spacing: 6px;
+}
+
+.tokenbar-account-row {
+  padding: 2px 0;
+}
+
+.tokenbar-account-row.tokenbar-dragging {
   background-color: rgba(169, 124, 248, 0.18);
 }
 
-.tokenbar-drag-actor {
-  padding: 8px 12px;
+.tokenbar-drag-handle {
+  width: 14px;
+  color: #6e6e73;
+  font-size: 14px;
+  text-align: center;
+}
+
+.tokenbar-drag-handle:hover {
+  color: #ffffff;
+}
+
+.tokenbar-account-name {
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.tokenbar-account-name:hover,
+.tokenbar-account-name:focus {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+.tokenbar-account-name-line {
+  spacing: 6px;
+}
+
+.tokenbar-edit-hint {
+  color: #6e6e73;
+  font-size: 11px;
+}
+
+.tokenbar-account-name:hover .tokenbar-edit-hint {
+  color: #a97cf8;
+}
+
+.tokenbar-account-editor {
+  spacing: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background-color: rgba(169, 124, 248, 0.10);
+}
+
+.tokenbar-account-fields {
+  spacing: 8px;
+}
+
+.tokenbar-entry {
+  padding: 6px 10px;
   border-radius: 10px;
-  background-color: rgba(34, 34, 37, 0.95);
+  background-color: rgba(15, 15, 16, 0.55);
   color: #ffffff;
   font-size: 13px;
+  caret-color: #a97cf8;
+  selection-background-color: #a97cf8;
+  selected-color: #0f0f10;
+}
+
+.tokenbar-entry:focus {
+  border: 1px solid #a97cf8;
+}
+
+.tokenbar-entry-short {
+  width: 72px;
 }
 
 .tokenbar-labeled {

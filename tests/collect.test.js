@@ -158,6 +158,6 @@ test('com idioma inglês no config.json, os textos gravados saem em inglês', as
   const state = await readState();
   assert.equal(byId(state, 'claude-main').error, 'could not reach the server');
   assert.match(byId(state, 'claude-2').error, /open Claude Code/);
-  assert.equal(byId(state, 'claude-main').name, 'Claude (main)');
+  assert.equal(byId(state, 'claude-main').name, 'Claude 1');
   assert.equal(byId(state, 'claude-main').windows[1].label, 'Semana', 'o último valor conhecido é mantido como estava');
 });

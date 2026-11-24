@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
@@ -93,6 +92,9 @@ class TokenBarIndicator extends PanelMenu.Button {
         this._debounceId = 0;
         this._pollId = 0;
         this._tickId = 0;
+        this._settingsRebuildId = 0;
+        this._editingAccount = null;
+        this._drag = null;
 
         const cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'tokenbar']);
         this._stateFile = Gio.File.new_for_path(GLib.build_filenamev([cacheDir, 'state.json']));
@@ -349,72 +351,7 @@ class TokenBarIndicator extends PanelMenu.Button {
             text,
         });
 
-        const accounts = this._settingsCard(t('set.accounts'));
-        accounts.add_child(new St.Label({
-            style_class: 'tokenbar-muted tokenbar-tiny',
-            text: t('set.dragHint'),
-        }));
-        const legend = new St.BoxLayout({style_class: 'tokenbar-set-row'});
-        legend.add_child(new St.Widget({x_expand: true}));
-        legend.add_child(columnTitle(t('set.collect')));
-        legend.add_child(columnTitle(t('set.inBar')));
-        accounts.add_child(legend);
-        // As contas vêm do coletor (as que existem nesta máquina); a lista
-        // fixa só serve enquanto ele ainda não gravou nada.
-        const rawAccounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
-            ? this._state.accounts : PROVIDERS;
-        const accountList = applyProviderOrder(rawAccounts, settings.get_strv('provider-order'));
-        const accountRows = [];
-        accountList.forEach(provider => {
-            const row = new St.BoxLayout({
-                style_class: 'tokenbar-set-row',
-                reactive: true,
-                track_hover: true,
-            });
-            row.add_child(new St.Label({
-                style_class: 'tokenbar-tag',
-                text: provider.label,
-                y_align: Clutter.ActorAlign.CENTER,
-            }));
-            row.add_child(new St.Label({
-                text: provider.name,
-                x_expand: true,
-                y_align: Clutter.ActorAlign.CENTER,
-            }));
-            row.add_child(listSwitch('disabled-providers', provider.id));
-            row.add_child(listSwitch('bar-hidden-providers', provider.id));
-            const clearHover = () => {
-                for (const entry of accountRows)
-                    entry.remove_style_class_name('tokenbar-drop-hover');
-            };
-            row._delegate = {
-                providerId: provider.id,
-                getDragActor: () => new St.Label({
-                    style_class: 'tokenbar-drag-actor',
-                    text: `${provider.label}  ${provider.name}`,
-                }),
-                getDragActorSource: () => row,
-                handleDragOver: (source, _actor, _x, _y, _time) => {
-                    if (!source?.providerId || source.providerId === provider.id) {
-                        row.remove_style_class_name('tokenbar-drop-hover');
-                        return DND.DragMotionResult.CONTINUE;
-                    }
-                    row.add_style_class_name('tokenbar-drop-hover');
-                    return DND.DragMotionResult.MOVE_DROP;
-                },
-                acceptDrop: (source, _actor, _x, y, _time) => {
-                    clearHover();
-                    if (!source?.providerId || source.providerId === provider.id)
-                        return false;
-                    this._placeProvider(source.providerId, provider.id, y > row.height / 2);
-                    return true;
-                },
-            };
-            const draggable = DND.makeDraggable(row, {restoreOnSuccess: true});
-            draggable.connect('drag-end', clearHover);
-            accountRows.push(row);
-            accounts.add_child(row);
-        });
+        this._buildAccountsCard(listSwitch, columnTitle);
 
         const display = this._settingsCard(t('set.display'));
         display.add_child(labeled(t('set.language'), makeChoice(localized(LANGUAGE_MODES), settings.get_string('language'),
@@ -422,12 +359,6 @@ class TokenBarIndicator extends PanelMenu.Button {
         display.add_child(labeled(t('set.percentages'), makeChoice(localized(DISPLAY_MODES),
             settings.get_boolean('show-remaining') ? 'remaining' : 'used',
             value => settings.set_boolean('show-remaining', value === 'remaining'))));
-        display.add_child(settingRow(t('set.blur'),
-            makeSwitch(settings.get_boolean('background-blur'),
-                active => settings.set_boolean('background-blur', active))));
-        display.add_child(settingRow(t('set.dock'),
-            makeSwitch(settings.get_boolean('dock-icon'),
-                active => settings.set_boolean('dock-icon', active))));
         display.add_child(labeled(t('set.currency'), makeChoice(localized(CURRENCIES), settings.get_string('currency'),
             value => settings.set_string('currency', value))));
 
@@ -437,6 +368,12 @@ class TokenBarIndicator extends PanelMenu.Button {
         bar.add_child(labeled(t('set.position'), makeChoice(localized(POSITIONS), settings.get_string('panel-position'),
             value => settings.set_string('panel-position', value))));
         bar.add_child(settingRow(t('set.order'), this._intStepper('panel-index', 1, 0, 20, v => String(v))));
+        bar.add_child(settingRow(t('set.blur'),
+            makeSwitch(settings.get_boolean('background-blur'),
+                active => settings.set_boolean('background-blur', active))));
+        bar.add_child(settingRow(t('set.dock'),
+            makeSwitch(settings.get_boolean('dock-icon'),
+                active => settings.set_boolean('dock-icon', active))));
 
         const off = value => (value > 0 ? String(value) : t('set.none'));
         const alerts = this._settingsCard(t('set.alerts'));
@@ -473,6 +410,252 @@ class TokenBarIndicator extends PanelMenu.Button {
         }));
 
         this._buildAboutCard();
+    }
+
+    // Contas: alça para arrastar, sigla, nome (clique para renomear), origem e
+    // as chaves "ativa" e "na barra". O arraste é feito à mão, com um grab no
+    // próprio puxador: o DND do shell briga com o grab do menu e devolvia a
+    // linha ao lugar antigo.
+    _buildAccountsCard(listSwitch, columnTitle) {
+        const settings = this._settings;
+        const accounts = this._settingsCard(t('set.accounts'));
+        const hint = new St.Label({
+            style_class: 'tokenbar-muted tokenbar-tiny',
+            text: t('set.dragHint'),
+        });
+        hint.clutter_text.line_wrap = true;
+        hint.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        accounts.add_child(hint);
+        const legend = new St.BoxLayout({style_class: 'tokenbar-set-row'});
+        legend.add_child(new St.Widget({x_expand: true}));
+        legend.add_child(columnTitle(t('set.collect')));
+        legend.add_child(columnTitle(t('set.inBar')));
+        accounts.add_child(legend);
+
+        // As contas vêm do coletor (as que existem nesta máquina); a lista
+        // fixa só serve enquanto ele ainda não gravou nada.
+        const rawAccounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
+            ? this._state.accounts : PROVIDERS;
+        const accountList = this._withNames(applyProviderOrder(rawAccounts, settings.get_strv('provider-order')));
+        const disabled = settings.get_strv('disabled-providers');
+        const list = new St.BoxLayout({
+            style_class: 'tokenbar-account-list',
+            orientation: Clutter.Orientation.VERTICAL,
+        });
+        accounts.add_child(list);
+        const rows = [];
+
+        for (const provider of accountList) {
+            if (this._editingAccount === provider.id) {
+                const editor = this._accountEditor(provider);
+                rows.push(editor);
+                list.add_child(editor);
+                continue;
+            }
+            const row = new St.BoxLayout({style_class: 'tokenbar-set-row tokenbar-account-row'});
+            const handle = new St.Label({
+                style_class: 'tokenbar-drag-handle',
+                text: '⠿',
+                reactive: true,
+                track_hover: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            handle.connect('button-press-event', (_actor, event) => {
+                if (event.get_button() !== Clutter.BUTTON_PRIMARY || accountList.length < 2)
+                    return Clutter.EVENT_PROPAGATE;
+                this._startAccountDrag(handle, row, rows, provider.id, event);
+                return Clutter.EVENT_STOP;
+            });
+            row.add_child(handle);
+            row.add_child(new St.Label({
+                style_class: 'tokenbar-tag tokenbar-tag-fixed',
+                text: provider.label,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+
+            const nameBox = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
+            const nameLine = new St.BoxLayout({style_class: 'tokenbar-account-name-line'});
+            nameLine.add_child(new St.Label({text: provider.name, y_align: Clutter.ActorAlign.CENTER}));
+            nameLine.add_child(new St.Label({style_class: 'tokenbar-edit-hint', text: '✎', y_align: Clutter.ActorAlign.CENTER}));
+            nameBox.add_child(nameLine);
+            if (provider.source)
+                nameBox.add_child(new St.Label({style_class: 'tokenbar-muted tokenbar-tiny', text: provider.source}));
+            const nameButton = new St.Button({
+                style_class: 'tokenbar-account-name',
+                child: nameBox,
+                can_focus: true,
+                x_expand: true,
+                x_align: Clutter.ActorAlign.START,
+                accessible_name: `${t('set.rename')}: ${provider.name}`,
+            });
+            nameButton.connect('clicked', () => {
+                this._editingAccount = provider.id;
+                this._queueSettingsRebuild();
+            });
+            row.add_child(nameButton);
+
+            row.add_child(listSwitch('disabled-providers', provider.id));
+            const barSwitch = listSwitch('bar-hidden-providers', provider.id);
+            // Conta desligada não aparece na barra: a segunda chave fica apagada.
+            if (disabled.includes(provider.id)) {
+                barSwitch.opacity = 90;
+                barSwitch.reactive = false;
+                barSwitch.get_child().reactive = false;
+            }
+            row.add_child(barSwitch);
+            rows.push(row);
+            list.add_child(row);
+        }
+    }
+
+    _accountEditor(provider) {
+        const names = this._accountNames()[provider.id] ?? {};
+        const box = new St.BoxLayout({
+            style_class: 'tokenbar-account-editor',
+            orientation: Clutter.Orientation.VERTICAL,
+        });
+        const fields = new St.BoxLayout({style_class: 'tokenbar-account-fields'});
+        const nameEntry = new St.Entry({
+            style_class: 'tokenbar-entry',
+            text: names.name ?? '',
+            hint_text: provider.defaultName,
+            can_focus: true,
+            x_expand: true,
+        });
+        const labelEntry = new St.Entry({
+            style_class: 'tokenbar-entry tokenbar-entry-short',
+            text: names.label ?? '',
+            hint_text: provider.defaultLabel,
+            can_focus: true,
+        });
+        labelEntry.clutter_text.max_length = 5;
+        nameEntry.clutter_text.max_length = 32;
+        const nameField = labeled(t('set.nameField'), nameEntry);
+        nameField.x_expand = true;
+        fields.add_child(nameField);
+        fields.add_child(labeled(t('set.labelField'), labelEntry));
+        box.add_child(fields);
+
+        const close = () => {
+            this._editingAccount = null;
+            this._queueSettingsRebuild();
+        };
+        const save = () => {
+            this._setAccountName(provider.id, nameEntry.text, labelEntry.text);
+            close();
+        };
+        nameEntry.clutter_text.connect('activate', save);
+        labelEntry.clutter_text.connect('activate', save);
+        for (const entry of [nameEntry, labelEntry]) {
+            entry.clutter_text.connect('key-press-event', (_actor, event) => {
+                if (event.get_key_symbol() !== Clutter.KEY_Escape)
+                    return Clutter.EVENT_PROPAGATE;
+                close();
+                return Clutter.EVENT_STOP;
+            });
+        }
+
+        const actions = new St.BoxLayout({style_class: 'tokenbar-segmented tokenbar-choice'});
+        const action = (label, primary, callback) => {
+            const button = new St.Button({
+                style_class: `tokenbar-button tokenbar-button-small${primary ? ' tokenbar-button-primary' : ''}`,
+                label,
+                can_focus: true,
+                x_expand: true,
+            });
+            button.connect('clicked', callback);
+            actions.add_child(button);
+        };
+        action(t('set.reset'), false, () => {
+            this._setAccountName(provider.id, '', '');
+            close();
+        });
+        action(t('set.cancel'), false, close);
+        action(t('set.save'), true, save);
+        box.add_child(actions);
+
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (!this._destroyed && nameEntry.get_stage())
+                nameEntry.grab_key_focus();
+            return GLib.SOURCE_REMOVE;
+        });
+        return box;
+    }
+
+    // Mesmo padrão do controle deslizante do shell: grab no puxador e os
+    // eventos de movimento/soltura chegam nele, mesmo dentro do menu.
+    _startAccountDrag(handle, row, rows, id, event) {
+        const from = rows.indexOf(row);
+        if (from < 0 || this._drag)
+            return;
+        const [, startY] = event.get_coords();
+        const pitch = rows.length > 1 ? Math.abs(rows[1].y - rows[0].y) || row.height : row.height;
+        row.add_style_class_name('tokenbar-dragging');
+        const drag = {id, row, rows, from, to: from, startY, pitch, handle, grab: null, signals: []};
+        this._drag = drag;
+        try {
+            drag.grab = global.stage.grab(handle);
+        } catch {
+            drag.grab = null;
+        }
+        drag.signals = [
+            handle.connect('motion-event', (_actor, motion) => {
+                this._dragMove(motion.get_coords()[1]);
+                return Clutter.EVENT_STOP;
+            }),
+            handle.connect('button-release-event', () => {
+                this._dragEnd();
+                return Clutter.EVENT_STOP;
+            }),
+        ];
+    }
+
+    _dragMove(y) {
+        const drag = this._drag;
+        if (!drag)
+            return;
+        const {row, rows, from, pitch} = drag;
+        const dy = Math.min(Math.max(y - drag.startY, -from * pitch), (rows.length - 1 - from) * pitch);
+        row.translation_y = dy;
+        drag.to = from + Math.round(dy / pitch);
+        rows.forEach((other, index) => {
+            if (other === row)
+                return;
+            let shift = 0;
+            if (from < drag.to && index > from && index <= drag.to)
+                shift = -pitch;
+            else if (drag.to < from && index >= drag.to && index < from)
+                shift = pitch;
+            other.translation_y = shift;
+        });
+    }
+
+    _dragEnd() {
+        const drag = this._drag;
+        if (!drag)
+            return;
+        this._drag = null;
+        for (const id of drag.signals)
+            drag.handle.disconnect(id);
+        drag.grab?.dismiss();
+        for (const other of drag.rows)
+            other.translation_y = 0;
+        drag.row.remove_style_class_name('tokenbar-dragging');
+        if (drag.to !== drag.from)
+            this._moveProvider(drag.id, drag.to);
+        this._queueSettingsRebuild();
+    }
+
+    // Reconstrói as configurações no próximo ciclo (fora do clique em andamento).
+    _queueSettingsRebuild() {
+        if (this._settingsRebuildId)
+            return;
+        this._settingsRebuildId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._settingsRebuildId = 0;
+            if (!this._destroyed && this._view === 'settings')
+                this._buildSettings();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _buildAboutCard() {
@@ -595,30 +778,68 @@ class TokenBarIndicator extends PanelMenu.Button {
         }
     }
 
-    _providers() {
-        const providers = (this._state?.providers ?? []).filter(p => p && typeof p.id === 'string');
-        return applyProviderOrder(providers, this._settings.get_strv('provider-order'));
+    _accountNames() {
+        try {
+            const names = JSON.parse(this._settings.get_string('account-names'));
+            return names && typeof names === 'object' && !Array.isArray(names) ? names : {};
+        } catch {
+            return {};
+        }
     }
 
-    _placeProvider(dragId, targetId, after = false) {
-        if (dragId === targetId)
-            return;
+    // Aplica na hora o nome/sigla escolhidos (o coletor só grava no próximo ciclo).
+    _withNames(items) {
+        const names = this._accountNames();
+        return items.map(item => {
+            const custom = names[item.id] ?? {};
+            const defaultName = item.defaultName ?? item.name;
+            const defaultLabel = item.defaultLabel ?? item.label;
+            return {
+                ...item,
+                name: custom.name || defaultName,
+                label: custom.label || defaultLabel,
+                defaultName,
+                defaultLabel,
+            };
+        });
+    }
+
+    _setAccountName(id, name, label) {
+        const names = this._accountNames();
+        const entry = {};
+        const cleanName = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, 32);
+        const cleanLabel = String(label ?? '').replace(/\s+/g, '').trim().slice(0, 5).toUpperCase();
+        if (cleanName)
+            entry.name = cleanName;
+        if (cleanLabel)
+            entry.label = cleanLabel;
+        if (Object.keys(entry).length > 0)
+            names[id] = entry;
+        else
+            delete names[id];
+        this._settings.set_string('account-names', JSON.stringify(names));
+    }
+
+    _providers() {
+        const providers = (this._state?.providers ?? []).filter(p => p && typeof p.id === 'string');
+        return this._withNames(applyProviderOrder(providers, this._settings.get_strv('provider-order')));
+    }
+
+    _accountIds() {
         const accounts = Array.isArray(this._state?.accounts) && this._state.accounts.length > 0
             ? this._state.accounts : PROVIDERS;
-        const ids = accounts.map(account => account.id);
-        const order = mergeProviderOrder(this._settings.get_strv('provider-order'), ids);
-        const from = order.indexOf(dragId);
-        if (from < 0 || !order.includes(targetId))
+        return accounts.map(account => account.id);
+    }
+
+    // Move a conta para a posição `to` da lista mostrada nas configurações.
+    _moveProvider(id, to) {
+        const order = mergeProviderOrder(this._settings.get_strv('provider-order'), this._accountIds());
+        const from = order.indexOf(id);
+        if (from < 0 || from === to)
             return;
         order.splice(from, 1);
-        let to = order.indexOf(targetId);
-        if (to < 0)
-            return;
-        if (after)
-            to += 1;
-        order.splice(to, 0, dragId);
+        order.splice(Math.min(Math.max(to, 0), order.length), 0, id);
         this._settings.set_strv('provider-order', order);
-        this._queueRender();
     }
 
     _level(provider) {
@@ -1166,6 +1387,8 @@ class TokenBarIndicator extends PanelMenu.Button {
             this._tickId = 0;
         }
         if (!open) {
+            this._dragEnd();
+            this._editingAccount = null;
             if (this._view !== 'main')
                 this._setView('main');
             return;
@@ -1254,11 +1477,11 @@ class TokenBarIndicator extends PanelMenu.Button {
     destroy() {
         this._destroyed = true;
         this._cancellable.cancel();
-        for (const id of [this._debounceId, this._pollId, this._tickId, this._renderId]) {
+        for (const id of [this._debounceId, this._pollId, this._tickId, this._renderId, this._settingsRebuildId]) {
             if (id)
                 GLib.source_remove(id);
         }
-        this._debounceId = this._pollId = this._tickId = this._renderId = 0;
+        this._debounceId = this._pollId = this._tickId = this._renderId = this._settingsRebuildId = 0;
         if (this._monitor) {
             this._monitor.disconnectObject(this);
             this._monitor.cancel();

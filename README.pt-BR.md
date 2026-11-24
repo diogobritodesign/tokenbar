@@ -49,6 +49,10 @@ Arch e openSUSE).
   atingida.
 - **Status do serviço**: uma faixa aparece só quando o status.claude.com
   registra incidente.
+- **Suas contas, seus nomes**: toda conta encontrada aparece sozinha
+  (`Claude 1`, `Claude 2`… quando há mais de uma, com a pasta de onde vem).
+  Clique no nome nas configurações para renomear ou trocar a sigla; arraste
+  pela alça ⠿ para reordenar.
 - **Configurações dentro do painel**: contas, o que a barra mostra, limites de
   cor, metas, moeda, idioma, intervalo do coletor, posição.
 - Atalho de teclado (`Super`+`Alt`+`T`) e exportação do histórico em CSV.
@@ -167,6 +171,12 @@ Tudo isso dá para mudar nas configurações do painel; fica guardado em
 ```json
 { "language": "pt", "dock": true, "bar": { "label": "critical", "showRemaining": true, "warn": 60, "crit": 85, "currency": "brl" } }
 ```
+
+Pastas do Claude Code fora de `~/.claude-*` / `~/.claude_*` (qualquer
+`CLAUDE_CONFIG_DIR` que você use) podem ser adicionadas à mão com
+`"claudeDirs": ["~/trabalho/claude"]`, e nomes com
+`"accountNames": { "claude-2": { "name": "Trabalho", "label": "TRB" } }` (as
+configurações do GNOME gravam isso por você).
 
 `label` pode ser `critical` (a conta mais crítica), `all` ou `none`.
 `"dock": true` deixa o TokenBar na barra de tarefas como um programa comum (só

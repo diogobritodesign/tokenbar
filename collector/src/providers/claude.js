@@ -10,26 +10,53 @@ const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const hint = () => t('claude.hint');
 
 // A conta padrão fica em ~/.claude. Contas extras são pastas ~/.claude-<nome>
-// (as usadas com CLAUDE_CONFIG_DIR); cada uma vira CLD2, CLD3... em ordem
-// alfabética, para o id não mudar entre execuções.
-export async function discoverClaudeAccounts(homeDir = home()) {
+// ou ~/.claude_<nome> (as usadas com CLAUDE_CONFIG_DIR), mais as pastas que o
+// usuário listar em `claudeDirs` no config.json. Cada uma vira CLD2, CLD3...
+// em ordem alfabética, para o id não mudar entre execuções. Os nomes são
+// "Claude 1", "Claude 2"... quando há mais de uma; o usuário pode trocá-los.
+const PREFIXES = ['.claude-', '.claude_'];
+
+async function looksLikeAccount(dir) {
+  if (!(await isDirectory(dir))) return false;
+  // Só conta como conta se tiver login ou conversas; ~/.claude-backup e afins ficam de fora.
+  return (await platform.exists(join(dir, '.credentials.json'))) || isDirectory(join(dir, 'projects'));
+}
+
+function tildePath(dir, homeDir) {
+  return dir === homeDir ? '~' : dir.startsWith(`${homeDir}/`) ? `~${dir.slice(homeDir.length)}` : dir;
+}
+
+function expandHome(dir, homeDir) {
+  const text = String(dir || '').trim();
+  if (text === '~') return homeDir;
+  if (text.startsWith('~/')) return join(homeDir, text.slice(2));
+  return text.startsWith('/') ? text.replace(/\/+$/, '') : null;
+}
+
+export async function discoverClaudeAccounts(homeDir = home(), extraDirs = []) {
+  const mainDir = join(homeDir, '.claude');
   // Sem acesso à pasta pessoal, a lista vem vazia e fica só a conta padrão.
-  const names = (await platform.readdir(homeDir)).filter((name) => name.startsWith('.claude-')).sort();
-  const extras = [];
+  const names = (await platform.readdir(homeDir))
+    .filter((name) => PREFIXES.some((prefix) => name.startsWith(prefix) && name.length > prefix.length))
+    .sort();
+  const dirs = [];
   for (const name of names) {
     const dir = join(homeDir, name);
-    if (!(await isDirectory(dir))) continue;
-    // Só conta como conta se tiver login ou conversas; ~/.claude-backup e afins ficam de fora.
-    const hasLogin = await platform.exists(join(dir, '.credentials.json'));
-    if (hasLogin || (await isDirectory(join(dir, 'projects')))) extras.push({ dir, suffix: name.slice('.claude-'.length) });
+    if (await looksLikeAccount(dir)) dirs.push(dir);
   }
+  for (const raw of Array.isArray(extraDirs) ? extraDirs : []) {
+    const dir = expandHome(raw, homeDir);
+    if (dir && dir !== mainDir && !dirs.includes(dir) && (await looksLikeAccount(dir))) dirs.push(dir);
+  }
+  const multi = dirs.length > 0;
   return [
-    { id: 'claude-main', label: 'CLD', name: extras.length > 0 ? t('name.claudeMain') : 'Claude', dir: join(homeDir, '.claude') },
-    ...extras.map((extra, index) => ({
+    { id: 'claude-main', label: 'CLD', name: multi ? 'Claude 1' : 'Claude', source: tildePath(mainDir, homeDir), dir: mainDir },
+    ...dirs.map((dir, index) => ({
       id: `claude-${index + 2}`,
       label: `CLD${index + 2}`,
-      name: `Claude (${extra.suffix})`,
-      dir: extra.dir
+      name: `Claude ${index + 2}`,
+      source: tildePath(dir, homeDir),
+      dir
     }))
   ];
 }
@@ -90,6 +117,7 @@ function claudeProvider(account) {
     id: account.id,
     label: account.label,
     name: account.name,
+    source: account.source,
     exists: () => isDirectory(account.dir),
 
     async fetchLimits() {
@@ -120,6 +148,6 @@ function claudeProvider(account) {
   };
 }
 
-export async function claudeProviders() {
-  return (await discoverClaudeAccounts()).map(claudeProvider);
+export async function claudeProviders(extraDirs = []) {
+  return (await discoverClaudeAccounts(home(), extraDirs)).map(claudeProvider);
 }

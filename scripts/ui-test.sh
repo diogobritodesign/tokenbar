@@ -123,6 +123,7 @@ echo "Configurações"
 click "Configurações" >/dev/null; sleep 0.8
 check "abre dentro do painel" "$(ev "$I.settingsOpen")" "true"
 check "lista as contas com os interruptores" "$(has_text 'na barra')" "true"
+check "mostra de onde vem cada conta" "$(has_text '~/.claude-work')" "true"
 shot settings.png
 click "Dólares (US\$)" >/dev/null; sleep 0.4
 check "troca a moeda" "$($GS get $SCHEMA currency)" "'usd'"
@@ -134,6 +135,47 @@ ev "(() => { $FIND const s = find($I.menu.box, a => a instanceof imports.gi.St.B
 check "interruptor desliga a coleta da primeira conta" "$($GS get $SCHEMA disabled-providers)" "['claude-main']"
 check "a mudança chega ao config.json do coletor" "$(grep -c 'claude-main' "$XDG_CONFIG_HOME/tokenbar/config.json")" "1"
 $GS set $SCHEMA disabled-providers "[]"
+
+# Renomear: clique no nome abre o editor; Enter grava.
+ev "(() => { $FIND const b = find($I.menu.box, a => a instanceof imports.gi.St.Button && a.style_class === 'tokenbar-account-name'); return press(b); })()" >/dev/null; sleep 0.6
+check "clique no nome abre o editor" "$(ev "(() => { $FIND return !!find($I.menu.box, a => a instanceof imports.gi.St.Entry); })()")" "true"
+shot rename.png
+ev "(() => { $FIND const e = find($I.menu.box, a => a instanceof imports.gi.St.Entry); e.text = 'Trabalho'; e.clutter_text.emit('activate'); return 1; })()" >/dev/null; sleep 0.8
+check "nome personalizado gravado" "$($GS get $SCHEMA account-names)" "'{\"claude-main\":{\"name\":\"Trabalho\"}}'"
+check "nome novo aparece na lista" "$(has_text 'Trabalho')" "true"
+check "nome chega ao config.json do coletor" "$(grep -c '"name": "Trabalho"' "$XDG_CONFIG_HOME/tokenbar/config.json")" "1"
+ev "(() => { $FIND const b = find($I.menu.box, a => a instanceof imports.gi.St.Button && a.style_class === 'tokenbar-account-name'); press(b); return 1; })()" >/dev/null; sleep 0.6
+click "Padrão" >/dev/null; sleep 0.6
+check "padrão volta ao nome automático" "$($GS get $SCHEMA account-names)" "'{}'"
+
+# Arrastar pela alça com um mouse virtual: a primeira conta desce duas posições.
+$GS set $SCHEMA provider-order "[]"
+DRAG=$(ev "(() => {
+  $FIND
+  const handles = []; const walk = a => { if (a.style_class === 'tokenbar-drag-handle') handles.push(a); for (const c of a.get_children()) walk(c); }; walk($I.menu.box);
+  const [x, y] = handles[0].get_transformed_position(); const [, y2] = handles[1].get_transformed_position();
+  const [w, h] = handles[0].get_transformed_size();
+  return [Math.round(x + w / 2), Math.round(y + h / 2), Math.round(y2 - y)].join(' ');
+})()" | tr -d '"')
+read -r DX DY PITCH <<< "$DRAG"
+# O shell headless não posiciona um mouse virtual de forma confiável; o teste
+# entra pelo mesmo caminho do clique (_startAccountDrag) com um evento falso e
+# depois move e solta como os sinais do grab fariam.
+DRAGGED=$(ev "(() => {
+  const handles = []; const rows = []; const walk = a => { if (a.style_class === 'tokenbar-drag-handle') handles.push(a); for (const c of a.get_children()) walk(c); }; walk($I.menu.box);
+  const row = handles[0].get_parent(); const all = row.get_parent().get_children();
+  $I._startAccountDrag(handles[0], row, all, 'claude-main', {get_coords: () => [$DX, $DY]});
+  const grabbed = !!$I._drag?.grab;
+  for (let i = 1; i <= 10; i++) $I._dragMove($DY + ($PITCH * 2 * i) / 10);
+  const moved = all[1].translation_y < 0 && row.translation_y > 0;
+  $I._dragEnd();
+  return grabbed && moved;
+})()"); sleep 1.2
+check "o puxador segura o ponteiro e as linhas abrem espaço" "$DRAGGED" "true"
+check "arrastar a alça reordena as contas" "$($GS get $SCHEMA provider-order)" "['claude-2', 'codex', 'claude-main', 'antigravity', 'copilot']"
+check "lista refeita na nova ordem" "$(ev "(() => { $FIND const n = []; const walk = a => { if (a.style_class === 'tokenbar-account-name') n.push(a); for (const c of a.get_children()) walk(c); }; walk($I.menu.box); return n[2].get_child().get_child_at_index(0).get_child_at_index(0).text; })()")" "\"Claude 1\""
+shot reorder.png
+$GS set $SCHEMA provider-order "[]"
 click "Esquerda" >/dev/null; sleep 1.2
 check "mudar a posição recria o item e reabre as configurações" "$(ev "$I.settingsOpen")" "true"
 click "Direita" >/dev/null; sleep 1.2

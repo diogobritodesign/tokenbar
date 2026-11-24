@@ -86,6 +86,7 @@ export const codexProviders = [
     id: 'codex',
     label: 'OAI',
     name: 'Codex / ChatGPT',
+    source: '~/.codex',
     exists: () => isDirectory(codexDir()),
     fetchLimits,
     usageToday: (usageCache, now) => codexUsageToday(sessionsDir(), usageCache, now),

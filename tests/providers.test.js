@@ -50,11 +50,18 @@ test('Claude: descobre a conta padrão e as pastas ~/.claude-<nome> com login ou
   await fs.mkdir(path.join(home, '.claude-backup'));
   await fs.writeFile(path.join(home, '.claude-arquivo'), 'não é pasta');
 
-  const accounts = await claude.discoverClaudeAccounts(home);
-  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name]), [
-    ['claude-main', 'CLD', 'Claude (principal)'],
-    ['claude-2', 'CLD2', 'Claude (antiga)'],
-    ['claude-3', 'CLD3', 'Claude (trabalho)']
+  await fs.mkdir(path.join(home, '.claude_pessoal'));
+  await fs.writeFile(path.join(home, '.claude_pessoal', '.credentials.json'), '{}');
+  const extra = path.join(home, 'contas', 'cliente');
+  await fs.mkdir(path.join(extra, 'projects'), { recursive: true });
+
+  const accounts = await claude.discoverClaudeAccounts(home, ['~/contas/cliente', '/não/existe', 'relativo']);
+  assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name, a.source]), [
+    ['claude-main', 'CLD', 'Claude 1', '~/.claude'],
+    ['claude-2', 'CLD2', 'Claude 2', '~/.claude-antiga'],
+    ['claude-3', 'CLD3', 'Claude 3', '~/.claude-trabalho'],
+    ['claude-4', 'CLD4', 'Claude 4', '~/.claude_pessoal'],
+    ['claude-5', 'CLD5', 'Claude 5', '~/contas/cliente']
   ]);
   const only = await claude.discoverClaudeAccounts(await tempDir(t));
   assert.deepEqual(only.map((a) => a.name), ['Claude']);
@@ -242,8 +249,8 @@ test('Cursor: descobre CLI e perfis IDE; deduplica a mesma conta', async (t) => 
   await fs.writeFile(path.join(config, 'cursor', 'auth.json'), JSON.stringify({ accessToken: tokenB }));
   accounts = await cursor.discoverCursorAccounts(config);
   assert.deepEqual(accounts.map((a) => [a.id, a.label, a.name]), [
-    ['cursor-ide', 'CUR', 'Cursor (IDE)'],
-    ['cursor-cli', 'CUR2', 'Cursor (CLI)']
+    ['cursor-ide', 'CUR', 'Cursor 1'],
+    ['cursor-cli', 'CUR2', 'Cursor 2']
   ]);
 });
 
@@ -273,5 +280,21 @@ test('em inglês, os rótulos e nomes gerados pelo coletor mudam', async (t) => 
   assert.deepEqual(copilot.mapWindows({ quota_snapshots: { completions: quota } }).map((w) => w.label), ['Code']);
   const home = await tempDir(t);
   await fs.mkdir(path.join(home, '.claude-x', 'projects'), { recursive: true });
-  assert.equal((await claude.discoverClaudeAccounts(home))[0].name, 'Claude (main)');
+  assert.equal((await claude.discoverClaudeAccounts(home))[0].name, 'Claude 1');
+});
+
+test('Antigravity: token CSRF lido do ambiente do processo (versões 2.x)', () => {
+  assert.equal(antigravity.tokenFromEnviron('A=1\0ANTIGRAVITY_SERVER_CSRF_TOKEN=abc-123\0B=2'), 'abc-123');
+  assert.equal(antigravity.tokenFromEnviron('A=1\0B=2'), '');
+  assert.equal(antigravity.tokenFromEnviron(''), '');
+});
+
+test('Antigravity: dois grupos com o mesmo nome curto mantêm o nome original', () => {
+  const windows = antigravity.mapWindows({
+    groups: [
+      { displayName: 'Gemini Pro', buckets: [{ window: 'weekly', remainingFraction: 0.5 }] },
+      { displayName: 'Gemini Flash', buckets: [{ window: 'weekly', remainingFraction: 1 }] }
+    ]
+  });
+  assert.deepEqual(windows.map((w) => [w.group, w.usedPct]), [['Gemini', 50], ['Gemini Flash', 0]]);
 });

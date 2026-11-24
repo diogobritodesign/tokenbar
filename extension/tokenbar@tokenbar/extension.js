@@ -68,6 +68,7 @@ export default class TokenBarExtension extends Extension {
             'changed::disabled-providers', () => this._writeCollectorConfig(),
             'changed::bar-hidden-providers', () => this._writeCollectorConfig(),
             'changed::provider-order', () => this._writeCollectorConfig(),
+            'changed::account-names', () => this._writeCollectorConfig(),
             'changed::show-remaining', () => this._writeCollectorConfig(),
             'changed::warn-threshold', () => this._writeCollectorConfig(),
             'changed::crit-threshold', () => this._writeCollectorConfig(),
@@ -234,7 +235,26 @@ export default class TokenBarExtension extends Extension {
         // bar-mode da barra do GNOME → label da bandeja/Waybar (critical/all/none).
         const barMode = this._settings.get_string('bar-mode');
         const label = barMode === 'critical' ? 'critical' : barMode === 'dots' ? 'none' : 'all';
+        const file = Gio.File.new_for_path(GLib.build_filenamev([dir, 'config.json']));
+        // Chaves que só existem no arquivo (ex.: claudeDirs, editado à mão) são mantidas.
+        let previous = {};
+        try {
+            const [, bytes] = file.load_contents(null);
+            const parsed = JSON.parse(new TextDecoder().decode(bytes));
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+                previous = parsed;
+        } catch {
+            previous = {};
+        }
+        let accountNames = {};
+        try {
+            accountNames = JSON.parse(this._settings.get_string('account-names')) ?? {};
+        } catch {
+            accountNames = {};
+        }
         const config = {
+            ...previous,
+            accountNames,
             intervalSec: this._settings.get_int('collector-interval'),
             disabledProviders: this._settings.get_strv('disabled-providers'),
             providerOrder: this._settings.get_strv('provider-order'),
@@ -256,8 +276,7 @@ export default class TokenBarExtension extends Extension {
         try {
             GLib.mkdir_with_parents(dir, 0o700);
             const bytes = new GLib.Bytes(new TextEncoder().encode(`${JSON.stringify(config, null, 2)}\n`));
-            await Gio.File.new_for_path(GLib.build_filenamev([dir, 'config.json']))
-                .replace_contents_bytes_async(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+            await file.replace_contents_bytes_async(bytes, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
         } catch (error) {
             console.error(`tokenbar: could not write config.json: ${error.message}`);
         }

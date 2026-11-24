@@ -78,6 +78,7 @@ export const copilotProviders = [
     id: 'copilot',
     label: 'GH',
     name: 'GitHub Copilot',
+    source: 'gh CLI',
     exists: () => isDirectory(copilotDir()),
     // Cota mensal: uma consulta a cada 10 min basta e poupa o limite da API do GitHub.
     minIntervalMs: 10 * 60 * 1000,

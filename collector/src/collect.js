@@ -10,6 +10,7 @@ import { claudeProviders } from './providers/claude.js';
 import { codexProviders } from './providers/codex.js';
 import { copilotProviders } from './providers/copilot.js';
 import { cursorProviders } from './providers/cursor.js';
+import { applyAccountNames, normalizeAccountNames } from './names.js';
 import { applyProviderOrder } from './order.js';
 import { serviceStatus } from './status.js';
 import { checkForUpdate } from './update.js';
@@ -24,9 +25,9 @@ const MAX_INTERVAL_SEC = 3600;
 // Todos os provedores cuja pasta existe nesta máquina, na ordem de exibição.
 // A lista é descoberta a cada ciclo (contas Claude extras, perfis Cursor…):
 // não há teto fixo — o que existir e estiver ligado nas configurações aparece.
-async function listProviders() {
+async function listProviders(config = {}) {
   const all = [
-    ...(await claudeProviders()),
+    ...(await claudeProviders(config.claudeDirs)),
     ...codexProviders,
     ...(await cursorProviders()),
     ...antigravityProviders,
@@ -63,6 +64,10 @@ export async function loadConfig() {
     disabledProviders: Array.isArray(raw.disabledProviders) ? raw.disabledProviders.map(String) : [],
     // Ordem das contas na barra/painel; vazio = ordem de descoberta.
     providerOrder: Array.isArray(raw.providerOrder) ? raw.providerOrder.map(String) : [],
+    // Nomes e siglas escolhidos pelo usuário: { id: { name, label } }.
+    accountNames: normalizeAccountNames(raw.accountNames),
+    // Pastas extras do Claude Code (CLAUDE_CONFIG_DIR) fora de ~/.claude-*.
+    claudeDirs: Array.isArray(raw.claudeDirs) ? raw.claudeDirs.filter((dir) => typeof dir === 'string') : [],
     // null = seguir o idioma do sistema
     language: LANGUAGES.includes(raw.language) ? raw.language : null,
     // Checagem diária de versão nova no GitHub; ligada por padrão.
@@ -101,6 +106,7 @@ async function collectProvider(provider, previous, usageCache, now, { force = fa
     id: provider.id,
     label: provider.label,
     name: provider.name,
+    source: provider.source ?? null,
     plan: previous?.plan ?? null,
     status: 'ok',
     // Em caso de falha fica o último valor conhecido; a interface o mostra em cinza.
@@ -184,7 +190,7 @@ export async function collectOnce(config, { forceUpdateCheck = false, forceProvi
   );
   const usageCache = await loadUsageCache(now);
 
-  const present = applyProviderOrder(await listProviders(), config.providerOrder);
+  const present = applyProviderOrder(await listProviders(config), config.providerOrder);
   const active = present.filter((provider) => !config.disabledProviders.includes(provider.id));
 
   const [collected, fx, services, update] = await Promise.all([
@@ -193,7 +199,7 @@ export async function collectOnce(config, { forceUpdateCheck = false, forceProvi
     serviceStatus(now.getTime()).catch(() => []),
     checkForUpdate({ enabled: config.updateCheck, force: forceUpdateCheck, now: now.getTime() }).catch(() => null)
   ]);
-  const providers = applyProviderOrder(collected, config.providerOrder);
+  const providers = applyAccountNames(applyProviderOrder(collected, config.providerOrder), config.accountNames);
 
   await applyRecentPace(providers, now.getTime());
 
@@ -213,7 +219,10 @@ export async function collectOnce(config, { forceUpdateCheck = false, forceProvi
     services,
     update,
     // Todas as contas encontradas, inclusive as desligadas, para a tela de configurações.
-    accounts: present.map(({ id, label, name }) => ({ id, label, name, enabled: !config.disabledProviders.includes(id) })),
+    accounts: applyAccountNames(
+      present.map(({ id, label, name, source }) => ({ id, label, name, source: source ?? null, enabled: !config.disabledProviders.includes(id) })),
+      config.accountNames
+    ),
     usage: summarize(history, now),
     providers
   });
@@ -228,7 +237,7 @@ export async function backfillHistoryOnce(config) {
   const today = localDayKey(now);
   const sinceMs = now.getTime() - BACKFILL_DAYS * 24 * 60 * 60 * 1000;
   const collected = [];
-  for (const provider of await listProviders()) {
+  for (const provider of await listProviders(config)) {
     if (!provider.dailyHistory || config.disabledProviders.includes(provider.id)) continue;
     collected.push([provider.id, await provider.dailyHistory(sinceMs)]);
   }
